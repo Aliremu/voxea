@@ -1,0 +1,20 @@
+[workspace]
+members = [ "crates/voxea", "crates/egui_winit" , "crates/voxea_audio"]
+default-members = ["crates/voxea"]
+resolver = "2"
+
+[workspace.dependencies]
+voxea = { path = "crates/voxea" }
+voxea_audio = { path = "crates/voxea_audio" }
+egui_winit = { path = "crates/egui_winit" }
+
+ahash = "0.8.11"
+anyhow = "1.0.86"
+egui = { version = "0.28.1" }
+egui-wgpu = { version = "0.28.1" }
+log = "0.4.22"
+pollster = { version = "0.3.0", features = ["macro"] }
+serde = { version = "1.0.209", features = ["derive"] }
+thiserror = "1.0.63"
+tracing-subscriber = { version = "0.3.18", features = ["local-time"] }
+winit = { version = "0.30.5" }

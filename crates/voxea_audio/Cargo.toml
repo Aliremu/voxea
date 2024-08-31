@@ -1,0 +1,11 @@
+[package]
+name = "voxea_audio"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow.workspace = true
+log.workspace = true
+thiserror.workspace = true
+tracing-subscriber.workspace = true
+cpal = { version = "0.15.3", features = [] }

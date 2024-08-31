@@ -1,0 +1,15 @@
+[package]
+name = "voxea"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+egui_winit.workspace = true
+voxea_audio.workspace = true
+
+egui.workspace = true
+egui-wgpu.workspace = true
+log.workspace = true
+pollster.workspace = true
+tracing-subscriber.workspace = true
+winit.workspace = true
