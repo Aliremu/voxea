@@ -7,6 +7,7 @@ edition = "2021"
 egui_winit.workspace = true
 voxea_audio.workspace = true
 
+anyhow.workspace = true
 egui.workspace = true
 egui-wgpu.workspace = true
 log.workspace = true
