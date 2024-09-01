@@ -10,7 +10,9 @@ egui_winit = { path = "crates/egui_winit" }
 
 ahash = "0.8.11"
 anyhow = "1.0.86"
+cpal = { version = "0.15.3", features = [] }
 egui = { version = "0.28.1" }
+egui-dropdown = "0.10.0"
 egui-wgpu = { version = "0.28.1" }
 log = "0.4.22"
 pollster = { version = "0.3.0", features = ["macro"] }

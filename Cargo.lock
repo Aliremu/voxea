@@ -553,6 +553,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "egui-dropdown"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "983323df439c4353979e32ef5f8120b1510cc3e496c36bcb226a37fd7315d3dd"
+dependencies = [
+ "egui",
+]
+
+[[package]]
 name = "egui-wgpu"
 version = "0.28.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -803,6 +812,12 @@ name = "hexf-parse"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
+
+[[package]]
+name = "hound"
+version = "3.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62adaabb884c94955b19907d60019f4e145d091c75345379e70d1ee696f7854f"
 
 [[package]]
 name = "indexmap"
@@ -2058,7 +2073,9 @@ name = "voxea"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "cpal",
  "egui",
+ "egui-dropdown",
  "egui-wgpu",
  "egui_winit",
  "log",
@@ -2074,6 +2091,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "cpal",
+ "hound",
  "log",
  "thiserror",
  "tracing-subscriber",

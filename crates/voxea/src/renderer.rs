@@ -110,7 +110,7 @@ impl RenderContext {
         }
     }
 
-    pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
+    pub fn resize(&mut self, new_size: &PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             self.config.width = new_size.width;
             self.config.height = new_size.height;
@@ -123,6 +123,82 @@ impl RenderContext {
         F: Fn(&egui::Context) + 'static,
     {
         self.ui_cmds.push(Box::new(f));
+    }
+
+    pub fn ui2<F>(&mut self, window: &WinitWindow, mut f: F)
+    where
+        F: FnMut(&egui::Context),
+    {
+        let input = self.egui_state.take_egui_input(&window);
+        let cx = self.egui_state.egui_ctx();
+        let full_output = self.egui_state.egui_ctx().run(input, |cx| {
+            f(cx);
+        });
+
+        self.ui_cmds.clear();
+
+        let clipped_primitives =
+            cx.tessellate(full_output.shapes.clone(), full_output.pixels_per_point);
+
+        for (id, image_delta) in &full_output.textures_delta.set {
+            self.renderer
+                .update_texture(&self.device, &self.queue, *id, image_delta);
+        }
+
+        let desc = egui_wgpu::ScreenDescriptor {
+            size_in_pixels: [self.config.width, self.config.height],
+            pixels_per_point: cx.pixels_per_point(),
+        };
+
+        let Ok(frame) = self.surface.get_current_texture() else {
+            warn!("Failed to acquire next swap chain texture");
+            return;
+        };
+
+        let view = frame
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+
+        let _command_buffers = self.renderer.update_buffers(
+            &self.device,
+            &self.queue,
+            &mut encoder,
+            &clipped_primitives,
+            &desc,
+        );
+
+        // Renders egui interface on top of framebuffer
+        {
+            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            rpass.set_pipeline(&self.render_pipeline);
+            rpass.draw(0..3, 0..1);
+
+            self.renderer.render(&mut rpass, &clipped_primitives, &desc);
+        }
+
+        for id in &full_output.textures_delta.free {
+            self.renderer.free_texture(id);
+        }
+
+        self.queue.submit(Some(encoder.finish()));
+        frame.present();
     }
 
     pub fn render(&mut self, window: &WinitWindow) {

@@ -1,0 +1,123 @@
+use std::collections::HashMap;
+use std::hash::RandomState;
+use std::time::{Duration, Instant};
+use log::warn;
+use winit::application::ApplicationHandler;
+use winit::event::{StartCause, WindowEvent};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+use winit::window::{WindowAttributes, WindowId};
+use anyhow::Result;
+
+use crate::ui::menu;
+use crate::window::{Render, Window};
+
+#[derive(Default)]
+pub struct App {
+    pub(crate) windows: HashMap<WindowId, Option<Window>, RandomState>,
+    pub(crate) on_start_callback: Option<Box<dyn FnOnce(&mut App, &ActiveEventLoop)>>,
+    pub(crate) wait_cancelled: bool,
+}
+
+const WAIT_TIME: Duration = Duration::from_micros(16666);
+
+impl App {
+    pub fn new() -> Self {
+        Self {
+            windows: HashMap::new(),
+            on_start_callback: None,
+            wait_cancelled: false
+        }
+    }
+
+    pub fn open_window(&mut self, event_loop: &ActiveEventLoop, window_attributes: Option<WindowAttributes>, view: Option<Box<dyn Render + 'static>>) -> Result<WindowId> {
+        let window = Window::new(event_loop, window_attributes, view)?;
+
+        let id = window.window.id();
+        self.windows.insert(id, Some(window));
+
+        Ok(id)
+    }
+
+    pub fn get_window(&mut self, window_id: &WindowId) -> Option<&mut Window> {
+        let window = self.windows.get_mut(window_id);
+
+        window?.as_mut()
+    }
+
+    pub fn run<F>(mut self, event_loop: EventLoop<()>, on_start_callback: F)
+    where
+        F: FnOnce(&mut App, &ActiveEventLoop) + 'static {
+
+        self.on_start_callback = Some(Box::new(on_start_callback));
+
+        let _ = event_loop.run_app(&mut self);
+    }
+}
+
+impl ApplicationHandler for App {
+    fn new_events(&mut self, _event_loop: &ActiveEventLoop, cause: StartCause) {
+        self.wait_cancelled = matches!(cause, StartCause::WaitCancelled { .. });
+    }
+
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        // Relinquishes ownership since it should only be called once
+        if let Some(on_start_callback) = self.on_start_callback.take() {
+            on_start_callback(self, event_loop);
+        }
+    }
+
+    fn window_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        window_id: WindowId,
+        event: WindowEvent,
+    ) {
+        // Moves ownership of the window to the current scope to avoid double borrowing
+        let Some(mut window) = self
+            .windows
+            .get_mut(&window_id)
+            .map_or(&mut None, |w| w)
+            .take()
+        else {
+            warn!("Could not find window with id: {window_id:?}!");
+            return;
+        };
+
+        let response = window.on_window_event(self, event_loop, &event);
+
+        match event {
+            WindowEvent::Resized(size) => {}
+
+            WindowEvent::RedrawRequested => {}
+
+            WindowEvent::CloseRequested => {}
+
+            _ => {}
+        }
+
+        if window.running {
+            // Moves ownership of the window back to the App
+            let _ = self.windows.insert(window_id, Some(window));
+        } else {
+            // Drops the reference to the window which closes it
+            self.windows.remove(&window_id);
+        }
+
+        // Exits the event loop when all windows have been closed
+        if self.windows.is_empty() {
+            event_loop.exit();
+        }
+    }
+
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if !self.wait_cancelled {
+            for window in self.windows.values().filter_map(|w| w.as_ref()).filter(|w| w.running) {
+                window.request_redraw();
+            }
+
+            // Waits some specified amount of time, i.e. 16.6ms to achieve 60 FPS frame cap, to reduce CPU usage
+            // TODO(@Aliremu): Integrate with monitors refresh rate to achieve VSYNC
+            event_loop.set_control_flow(ControlFlow::WaitUntil(Instant::now() + WAIT_TIME));
+        }
+    }
+}

@@ -8,7 +8,9 @@ egui_winit.workspace = true
 voxea_audio.workspace = true
 
 anyhow.workspace = true
+cpal.workspace = true
 egui.workspace = true
+egui-dropdown.workspace = true
 egui-wgpu.workspace = true
 log.workspace = true
 pollster.workspace = true
