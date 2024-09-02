@@ -15,6 +15,10 @@ pub struct RenderContext {
     pub(crate) renderer: egui_wgpu::Renderer,
     pub(crate) egui_state: egui_winit::State,
     pub(crate) ui_cmds: Vec<Box<dyn Fn(&egui::Context) + 'static>>,
+
+    pub(crate) fbo: wgpu::Texture,
+    pub(crate) fbo_view: wgpu::TextureView,
+    pub(crate) fbo_id: egui::TextureId,
 }
 
 impl RenderContext {
@@ -41,7 +45,7 @@ impl RenderContext {
             // Request an adapter which can render to our surface
             compatible_surface: Some(&surface),
         }))
-        .expect("Failed to find an appropriate adapter");
+            .expect("Failed to find an appropriate adapter");
 
         // Create the logical device and command queue
         let (device, queue) = pollster::block_on(adapter.request_device(
@@ -50,11 +54,11 @@ impl RenderContext {
                 required_features: wgpu::Features::empty(),
                 // Make sure we use the texture resolution limits from the adapter, so we can support images the size of the swapchain.
                 required_limits:
-                    wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits()),
+                wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits()),
             },
             None,
         ))
-        .expect("Failed to create device");
+            .expect("Failed to create device");
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
@@ -94,8 +98,26 @@ impl RenderContext {
         let config = surface.get_default_config(&adapter, width, height).unwrap();
         surface.configure(&device, &config);
 
-        let renderer =
+        let mut renderer =
             egui_wgpu::Renderer::new(&device, wgpu::TextureFormat::Bgra8UnormSrgb, None, 1);
+
+        let fbo = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("FBO Texture"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Bgra8UnormSrgb,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[wgpu::TextureFormat::Bgra8UnormSrgb]
+        });
+
+        let fbo_view = fbo.create_view(&wgpu::TextureViewDescriptor::default());
+        let fbo_id = renderer.register_native_texture(&device, &fbo_view, wgpu::FilterMode::Linear);
 
         Self {
             instance,
@@ -107,6 +129,10 @@ impl RenderContext {
             renderer,
             egui_state,
             ui_cmds: Vec::new(),
+
+            fbo,
+            fbo_view,
+            fbo_id
         }
     }
 
@@ -151,7 +177,7 @@ impl RenderContext {
         };
 
         let Ok(frame) = self.surface.get_current_texture() else {
-            warn!("Failed to acquire next swap chain texture");
+            // warn!("Failed to acquire next swap chain texture");
             return;
         };
 
@@ -187,9 +213,6 @@ impl RenderContext {
                 occlusion_query_set: None,
             });
 
-            rpass.set_pipeline(&self.render_pipeline);
-            rpass.draw(0..3, 0..1);
-
             self.renderer.render(&mut rpass, &clipped_primitives, &desc);
         }
 
@@ -199,6 +222,37 @@ impl RenderContext {
 
         self.queue.submit(Some(encoder.finish()));
         frame.present();
+    }
+
+    pub fn draw_triangle(&mut self) {
+        let fbo_view = &self.fbo_view;
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+
+        // Renders egui interface on top of framebuffer
+        {
+            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: fbo_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            rpass.set_pipeline(&self.render_pipeline);
+            rpass.draw(0..3, 0..1);
+        }
+
+        self.queue.submit(Some(encoder.finish()));
     }
 
     pub fn render(&mut self, window: &WinitWindow) {

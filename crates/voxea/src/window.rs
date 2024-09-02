@@ -68,8 +68,6 @@ impl Window {
     ) -> egui_winit::EventResponse {
         let response = self.cx.egui_state.on_window_event(&self.window, event);
 
-
-
         if let Some(mut view) = self.view.take() {
             let mut cx = WindowContext {
                 app: cx,

@@ -1,4 +1,5 @@
 use cpal::traits::DeviceTrait;
+use egui::{pos2, Color32};
 use egui_dropdown::DropDownBox;
 use log::info;
 use winit::dpi::PhysicalSize;
@@ -12,7 +13,7 @@ use crate::window::{Render, WindowContext};
 pub fn init(cx: &mut App, event_loop: &ActiveEventLoop) {
     let window_attributes = WindowAttributes::default()
         .with_title("Voxea 0.1")
-        .with_inner_size(PhysicalSize::new(1600, 1200));
+        .with_inner_size(PhysicalSize::new(1600, 900));
 
     cx.open_window(event_loop, Some(window_attributes), Some(Box::new(Menu::default()))).expect("Failed to open menu");
 }
@@ -25,52 +26,41 @@ pub struct Menu {
 impl Render for Menu {
     fn render(&mut self, cx: &mut WindowContext, event_loop: &ActiveEventLoop) {
         let mut window = &mut cx.window;
-        let inner_size = window.window.inner_size()
-            .to_logical::<f32>(window.window.scale_factor());
-
-        let width = inner_size.width;
-        let height = inner_size.height;
 
         let app = &mut cx.app;
 
+        window.cx.draw_triangle();
+        let texture_id = window.cx.fbo_id;
+
         window.cx.ui2(&window.window, |cx| {
             egui::TopBottomPanel::top("top_panel")
-                .exact_height(32.0)
+                .exact_height(40.0)
+                .frame(egui::Frame::none().inner_margin(4.0))
                 .show(cx, |ui| {
                     ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                        ui.visuals_mut().button_frame = false;
+
+                        let _ = ui.button("File");
                         let button = ui.button("Settings");
-
-                        // ui.add(
-                        //     // [ui.available_width() - 5.0, 32.0],
-                        //     egui::TextEdit::singleline(&mut self.text)
-                        //         .hint_text(egui::text::LayoutJob::simple_singleline(
-                        //             "Search...".to_string(),
-                        //             egui::FontId::default(),
-                        //             egui::Color32::default(),
-                        //         ))
-                        //         .desired_width(f32::INFINITY)
-                        //         .vertical_align(egui::Align::Center),
-                        // );
-
-                        // ui.add(
-                        //     DropDownBox::from_iter(
-                        //         &self.inputs,
-                        //         "audio_inpts",
-                        //         &mut self.input_search,
-                        //         |ui, text| ui.selectable_label(false, text)
-                        //     )
-                        // );
+                        let help = ui.button("Help");
 
                         if button.clicked() {
-                            // info!("Clicked!");
-                            // std::thread::spawn(|| {
-                            //     voxea_audio::beep().unwrap();
-                            // });
-
                             settings::init(*app, event_loop, &window.window);
+
+                            // Disables the parent window
                             window.window.set_enable(false);
                         }
                     });
+                });
+
+            egui::CentralPanel::default()
+                .show(cx, |ui| {
+                    let rect = egui::Rect {
+                        min: ui.cursor().left_top(),
+                        max: (ui.cursor().left_top() + ui.available_size())
+                    };
+                    let uv = egui::Rect{ min:pos2(0.0, 0.0), max:pos2(1.0, 1.0)};
+                    ui.painter().image(texture_id, rect, uv, Color32::WHITE);
                 });
         });
     }

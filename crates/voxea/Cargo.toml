@@ -6,13 +6,18 @@ edition = "2021"
 [dependencies]
 egui_winit.workspace = true
 voxea_audio.workspace = true
+voxea_alloc.workspace = true
+voxea_plugin.workspace = true
 
 anyhow.workspace = true
 cpal.workspace = true
+dirs.workspace = true
 egui.workspace = true
 egui-dropdown.workspace = true
 egui-wgpu.workspace = true
 log.workspace = true
 pollster.workspace = true
+rfd = "0.14.1"
+rustc-hash.workspace = true
 tracing-subscriber.workspace = true
 winit.workspace = true

@@ -1,0 +1,9 @@
+[package]
+name = "voxea_alloc"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+libc = "0.2.158"
+mimalloc = "0.1.43"
+rustc-hash.workspace = true

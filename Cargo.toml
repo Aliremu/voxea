@@ -1,21 +1,25 @@
 [workspace]
-members = [ "crates/voxea", "crates/egui_winit" , "crates/voxea_audio"]
+members = [ "crates/voxea", "crates/egui_winit" , "crates/voxea_audio", "crates/voxea_alloc", "crates/voxea_plugin"]
 default-members = ["crates/voxea"]
 resolver = "2"
 
 [workspace.dependencies]
 voxea = { path = "crates/voxea" }
 voxea_audio = { path = "crates/voxea_audio" }
+voxea_alloc = { path = "crates/voxea_alloc" }
+voxea_plugin = { path = "crates/voxea_plugin" }
 egui_winit = { path = "crates/egui_winit" }
 
 ahash = "0.8.11"
 anyhow = "1.0.86"
 cpal = { version = "0.15.3", features = [] }
+dirs = "5.0.1"
 egui = { version = "0.28.1" }
 egui-dropdown = "0.10.0"
 egui-wgpu = { version = "0.28.1" }
 log = "0.4.22"
 pollster = { version = "0.3.0", features = ["macro"] }
+rustc-hash = "2.0.0"
 serde = { version = "1.0.209", features = ["derive"] }
 thiserror = "1.0.63"
 tracing-subscriber = { version = "0.3.18", features = ["local-time"] }

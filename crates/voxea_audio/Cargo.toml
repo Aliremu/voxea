@@ -8,5 +8,6 @@ anyhow.workspace = true
 cpal.workspace = true
 hound = "3.5.1"
 log.workspace = true
+rustc-hash.workspace = true
 thiserror.workspace = true
 tracing-subscriber.workspace = true

@@ -98,6 +98,18 @@ pub fn enumerate_output_devices(id: &HostId) -> Vec<Device> {
     host.output_devices().unwrap().collect()
 }
 
+pub fn default_input_device(id: &HostId) -> Device {
+    let host = cpal::host_from_id(*id).unwrap();
+
+    host.default_input_device().unwrap()
+}
+
+pub fn default_output_device(id: &HostId) -> Device {
+    let host = cpal::host_from_id(*id).unwrap();
+
+    host.default_output_device().unwrap()
+}
+
 pub fn beep() -> Result<()> {
     let host = cpal::default_host();
 
