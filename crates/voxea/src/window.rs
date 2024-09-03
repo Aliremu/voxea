@@ -1,24 +1,30 @@
+use crate::renderer::RenderContext;
+use crate::ui::menu;
+use crate::App;
+use anyhow::Result;
 use egui::ViewportBuilder;
+use egui_winit::{apply_viewport_builder_to_window, create_winit_window_attributes};
+use log::{info, warn};
 use std::sync::Arc;
 use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::KeyCode;
-use winit::{dpi::PhysicalSize, window::Window as WinitWindow};
-use anyhow::Result;
-use log::info;
 use winit::window::WindowAttributes;
-use egui_winit::{apply_viewport_builder_to_window, create_winit_window_attributes};
-use crate::renderer::RenderContext;
-use crate::App;
-use crate::ui::menu;
+use winit::{dpi::PhysicalSize, window::Window as WinitWindow};
 
 pub struct WindowContext<'a> {
     pub(crate) app: &'a mut App,
-    pub(crate) window: &'a mut Window
+    pub(crate) window: &'a mut Window,
 }
 
 pub trait Render: 'static {
-    fn window_event(&mut self, cx: &mut WindowContext, event_loop: &ActiveEventLoop, event: &WindowEvent) {}
+    fn window_event(
+        &mut self,
+        cx: &mut WindowContext,
+        event_loop: &ActiveEventLoop,
+        event: &WindowEvent,
+    ) {
+    }
     fn render(&mut self, cx: &mut WindowContext, event_loop: &ActiveEventLoop);
 }
 
@@ -30,23 +36,30 @@ pub struct Window {
     pub(crate) running: bool,
 
     // winit bug where random resize events are sent on startup. https://github.com/rust-windowing/winit/issues/2094
-    pub(crate) init: bool
+    pub(crate) init: bool,
 }
 
 impl Window {
     /// Creates a window and initializes the [`RenderContext`] and egui states
     /// Must be called in the main thread to have access to [`ActiveEventLoop`]
-    pub fn new(event_loop: &ActiveEventLoop, window_attributes: Option<WindowAttributes>, view: Option<Box<dyn Render + 'static>>) -> Result<Self> {
+    pub fn new(
+        event_loop: &ActiveEventLoop,
+        window_attributes: Option<WindowAttributes>,
+        view: Option<Box<dyn Render + 'static>>,
+    ) -> Result<Self> {
         let egui_ctx = egui::Context::default();
         egui_ctx.set_fonts(egui::FontDefinitions::default());
         egui_ctx.set_style(egui::Style::default());
 
         let viewport_builder = ViewportBuilder::default();
 
-        let window_attributes = window_attributes.map_or(create_winit_window_attributes(&egui_ctx, event_loop, viewport_builder.clone()), |v| v);
+        let window_attributes = window_attributes.map_or(
+            create_winit_window_attributes(&egui_ctx, event_loop, viewport_builder.clone()),
+            |v| v,
+        );
 
         let window = Arc::new(event_loop.create_window(window_attributes)?);
-            apply_viewport_builder_to_window(&egui_ctx, &window, &viewport_builder);
+        apply_viewport_builder_to_window(&egui_ctx, &window, &viewport_builder);
 
         let cx = RenderContext::new(egui_ctx, window.clone());
 
@@ -55,7 +68,7 @@ impl Window {
             cx,
             view,
             running: true,
-            init: false
+            init: false,
         })
     }
 
@@ -71,7 +84,7 @@ impl Window {
         if let Some(mut view) = self.view.take() {
             let mut cx = WindowContext {
                 app: cx,
-                window: self
+                window: self,
             };
 
             view.window_event(&mut cx, event_loop, &event);
@@ -113,7 +126,7 @@ impl Window {
                     if let Some(mut view) = self.view.take() {
                         let mut cx = WindowContext {
                             app: cx,
-                            window: self
+                            window: self,
                         };
 
                         view.render(&mut cx, event_loop);
@@ -141,5 +154,11 @@ impl Window {
     #[inline]
     pub fn request_redraw(&self) {
         self.window.request_redraw();
+    }
+}
+
+impl Drop for Window {
+    fn drop(&mut self) {
+        warn!("Dropping window! {:?}", self.window.id());
     }
 }

@@ -1,27 +1,30 @@
-mod renderer;
-mod window;
-mod ui;
+#![feature(once_cell_get_mut)]
+
 mod app;
 mod config;
+mod plugin;
+mod renderer;
+mod ui;
+mod window;
 
-use cpal::traits::DeviceTrait;
-use log::info;
-use winit::application::ApplicationHandler;
-use winit::event_loop::{EventLoop};
-use tracing_subscriber::fmt::time::LocalTime;
-use voxea_alloc::perf;
-use crate::window::{Render};
 use crate::app::App;
 use crate::ui::menu;
+use crate::window::Render;
+use cpal::traits::DeviceTrait;
+use log::info;
+use tracing_subscriber::fmt::time::LocalTime;
+use voxea_alloc::perf;
+use voxea_alloc::perf::PerfTrace;
+use winit::application::ApplicationHandler;
+use winit::event_loop::EventLoop;
 
 #[global_allocator]
 static GLOBAL: voxea_alloc::MemAllocator = voxea_alloc::MemAllocator::new();
 
 fn main() {
-    // dirs::config_dir()
     perf::init();
 
-    perf::begin("main");
+    perf::begin_perf!("main");
 
     tracing_subscriber::fmt()
         .with_timer(LocalTime::rfc_3339())
@@ -34,7 +37,8 @@ fn main() {
     let app = App::new();
     app.run(event_loop, |cx, event_loop| {
         menu::init(cx, event_loop);
+        plugin::run_plugins().unwrap();
     });
 
-    perf::end("main");
+    info!("Bye bye!");
 }

@@ -1,10 +1,12 @@
+use anyhow::Result;
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::{
+    Device, Devices, FromSample, Host, HostId, InputDevices, OutputDevices, Sample, SizedSample,
+};
+use log::{error, info};
 use std::fs::File;
 use std::io::BufWriter;
 use std::sync::{Arc, Mutex};
-use anyhow::Result;
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{Device, Devices, FromSample, Host, HostId, InputDevices, OutputDevices, Sample, SizedSample};
-use log::{error, info};
 
 // pub fn enumerate_hosts() -> Result<()> {
 //     info!("Supported hosts:\n  {:?}", cpal::ALL_HOSTS);
@@ -189,7 +191,6 @@ where
     }
 }
 
-
 pub fn record() -> Result<()> {
     let host = cpal::default_host();
 
@@ -202,7 +203,7 @@ pub fn record() -> Result<()> {
         host.input_devices()?
             .find(|x| x.name().map(|y| y == opt).unwrap_or(false))
     }
-        .expect("failed to find input device");
+    .expect("failed to find input device");
 
     info!("Input device: {}", device.name()?);
 

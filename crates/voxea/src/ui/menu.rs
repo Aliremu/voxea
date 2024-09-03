@@ -1,3 +1,6 @@
+use crate::ui::settings;
+use crate::window::{Render, WindowContext};
+use crate::{plugin, App};
 use cpal::traits::DeviceTrait;
 use egui::{pos2, Color32};
 use egui_dropdown::DropDownBox;
@@ -6,25 +9,27 @@ use winit::dpi::PhysicalSize;
 use winit::event_loop::ActiveEventLoop;
 use winit::platform::windows::WindowExtWindows;
 use winit::window::WindowAttributes;
-use crate::App;
-use crate::ui::settings;
-use crate::window::{Render, WindowContext};
 
 pub fn init(cx: &mut App, event_loop: &ActiveEventLoop) {
     let window_attributes = WindowAttributes::default()
         .with_title("Voxea 0.1")
         .with_inner_size(PhysicalSize::new(1600, 900));
 
-    cx.open_window(event_loop, Some(window_attributes), Some(Box::new(Menu::default()))).expect("Failed to open menu");
+    cx.open_window(
+        event_loop,
+        Some(window_attributes),
+        Some(Box::new(Menu::default())),
+    )
+    .expect("Failed to open menu");
 }
 
 #[derive(Default)]
-pub struct Menu {
-
-}
+pub struct Menu {}
 
 impl Render for Menu {
     fn render(&mut self, cx: &mut WindowContext, event_loop: &ActiveEventLoop) {
+        plugin::process_signal();
+
         let mut window = &mut cx.window;
 
         let app = &mut cx.app;
@@ -53,15 +58,17 @@ impl Render for Menu {
                     });
                 });
 
-            egui::CentralPanel::default()
-                .show(cx, |ui| {
-                    let rect = egui::Rect {
-                        min: ui.cursor().left_top(),
-                        max: (ui.cursor().left_top() + ui.available_size())
-                    };
-                    let uv = egui::Rect{ min:pos2(0.0, 0.0), max:pos2(1.0, 1.0)};
-                    ui.painter().image(texture_id, rect, uv, Color32::WHITE);
-                });
+            egui::CentralPanel::default().show(cx, |ui| {
+                let rect = egui::Rect {
+                    min: ui.cursor().left_top(),
+                    max: (ui.cursor().left_top() + ui.available_size()),
+                };
+                let uv = egui::Rect {
+                    min: pos2(0.0, 0.0),
+                    max: pos2(1.0, 1.0),
+                };
+                ui.painter().image(texture_id, rect, uv, Color32::WHITE);
+            });
         });
     }
 }

@@ -1,0 +1,25 @@
+[package]
+name = "test_plugin"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wit-bindgen-rt = { version = "0.30.0", features = ["bitflags"] }
+voxea_plugin.workspace = true
+reqwest = "0.12.7"
+pollster = "0.3.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+codegen-units = 1
+opt-level = "s"
+debug = false
+strip = true
+lto = true
+
+[package.metadata.component]
+package = "component:test-plugin"
+
+[package.metadata.component.dependencies]

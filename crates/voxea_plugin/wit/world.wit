@@ -1,0 +1,24 @@
+package sdk:component;
+
+interface logger {
+    log: func(text: string);
+}
+
+interface plugin-api {
+    enable: func() -> s32;
+    disable: func() -> s32;
+
+    process-signal: func(ptr: u64);
+}
+
+interface registry {
+    add-entity: func(name: string) -> bool;
+    get-signal: func(idx: u64) -> f64;
+}
+
+world plugin {
+    import logger;
+    import registry;
+
+    export plugin-api;
+}

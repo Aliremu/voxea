@@ -1,5 +1,4 @@
-use egui_wgpu::wgpu;
-use log::warn;
+use log::{info, warn};
 use std::borrow::Cow;
 use std::sync::Arc;
 use winit::dpi::PhysicalSize;
@@ -36,7 +35,10 @@ impl RenderContext {
             None,
         );
 
-        let instance = wgpu::Instance::default();
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::VULKAN,
+            ..Default::default()
+        });
         let surface = instance.create_surface(window).unwrap();
 
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
@@ -45,7 +47,7 @@ impl RenderContext {
             // Request an adapter which can render to our surface
             compatible_surface: Some(&surface),
         }))
-            .expect("Failed to find an appropriate adapter");
+        .expect("Failed to find an appropriate adapter");
 
         // Create the logical device and command queue
         let (device, queue) = pollster::block_on(adapter.request_device(
@@ -54,11 +56,11 @@ impl RenderContext {
                 required_features: wgpu::Features::empty(),
                 // Make sure we use the texture resolution limits from the adapter, so we can support images the size of the swapchain.
                 required_limits:
-                wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits()),
+                    wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits()),
             },
             None,
         ))
-            .expect("Failed to create device");
+        .expect("Failed to create device");
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
@@ -95,7 +97,9 @@ impl RenderContext {
             multiview: None,
         });
 
-        let config = surface.get_default_config(&adapter, width, height).unwrap();
+        let mut config = surface.get_default_config(&adapter, width, height).unwrap();
+        info!("{:?}", config);
+
         surface.configure(&device, &config);
 
         let mut renderer =
@@ -106,14 +110,16 @@ impl RenderContext {
             size: wgpu::Extent3d {
                 width,
                 height,
-                depth_or_array_layers: 1
+                depth_or_array_layers: 1,
             },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Bgra8UnormSrgb,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[wgpu::TextureFormat::Bgra8UnormSrgb]
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[wgpu::TextureFormat::Bgra8UnormSrgb],
         });
 
         let fbo_view = fbo.create_view(&wgpu::TextureViewDescriptor::default());
@@ -132,7 +138,7 @@ impl RenderContext {
 
             fbo,
             fbo_view,
-            fbo_id
+            fbo_id,
         }
     }
 

@@ -1,14 +1,11 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+pub mod bindings {
+
+    use wit_bindgen::generate;
+    // The first arg is the path to our wit file, the second tells it to make our export macro public(which we'll need), and the third will let us change the macro name
+    generate!({path: "./wit/world.wit", pub_export_macro: true, export_macro_name: "export"  });
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+// Reexport the Guest trait as a different name. entirely optional
+pub use crate::bindings::{
+    export, exports::sdk::component::plugin_api::Guest as VoxeaPlugin, sdk::component::*,
+};

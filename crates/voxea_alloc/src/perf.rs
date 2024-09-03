@@ -1,6 +1,7 @@
-use std::{sync::OnceLock, time::Instant};
-use std::collections::VecDeque;
+use crate::perf;
 use rustc_hash::FxHashMap;
+use std::collections::VecDeque;
+use std::{sync::OnceLock, time::Instant};
 
 static mut REGISTRY: OnceLock<FxHashMap<&'static str, Statistics>> = OnceLock::new();
 static mut REGION_STACK: OnceLock<VecDeque<&'static str>> = OnceLock::new();
@@ -15,6 +16,7 @@ pub struct Timer {
 pub struct Memory {
     pub allocated: usize,
     pub freed: usize,
+    pub peak_usage: usize,
 }
 
 #[derive(Debug, Copy, Clone, Default)]
@@ -46,7 +48,8 @@ pub fn begin(region: &'static str) {
             .get_mut_or_init(|| FxHashMap::default())
             .entry(region)
             .and_modify(|v| {
-                v.memory = Memory::default();
+                v.memory.allocated = 0;
+                v.memory.freed = 0;
                 v.timer.instant = Instant::now();
             })
             .or_default();
@@ -60,10 +63,14 @@ pub fn begin(region: &'static str) {
 /// Ends a perf session for a region and updates the internal Timer
 pub fn end(region: &'static str) {
     unsafe {
-        let popped = REGION_STACK
-            .get_mut_or_init(|| VecDeque::new())
-            .pop_back();
-        assert_eq!(popped, Some(region), "Unmatched regions! Current region is: {:?}, trying to end region: {:?}", popped, region);
+        let popped = REGION_STACK.get_mut_or_init(|| VecDeque::new()).pop_back();
+        assert_eq!(
+            popped,
+            Some(region),
+            "Unmatched regions! Current region is: {:?}, trying to end region: {:?}",
+            popped,
+            region
+        );
 
         REGISTRY
             .get_mut_or_init(|| FxHashMap::default())
@@ -78,12 +85,7 @@ pub fn end(region: &'static str) {
 
 /// Gets the currently tracked region
 pub fn region() -> Option<&'static str> {
-    unsafe {
-        REGION_STACK
-            .get_or_init(|| VecDeque::new())
-            .back()
-            .cloned()
-    }
+    unsafe { REGION_STACK.get_or_init(|| VecDeque::new()).back().cloned() }
 }
 
 #[inline]
@@ -103,17 +105,63 @@ pub fn get(region: &'static str) -> Option<&'static Statistics> {
 
 #[inline]
 pub fn get_mut(region: &'static str) -> Option<&'static mut Statistics> {
-    unsafe { REGISTRY.get_mut_or_init(|| FxHashMap::default()).get_mut(region) }
+    unsafe {
+        REGISTRY
+            .get_mut_or_init(|| FxHashMap::default())
+            .get_mut(region)
+    }
 }
 
 pub fn alloc(size: usize) {
-    let Some(region) = region() else { return; };
+    let Some(region) = region() else {
+        return;
+    };
 
-    get_mut(region).unwrap().memory.allocated += size;
+    let region = get_mut(region).unwrap();
+    region.memory.allocated += size;
+    region.memory.peak_usage = region.memory.peak_usage.max(region.memory.allocated);
 }
 
 pub fn dealloc(size: usize) {
-    let Some(region) = region() else { return; };
+    let Some(region) = region() else {
+        return;
+    };
 
     get_mut(region).unwrap().memory.freed += size;
 }
+
+/// Struct that starts a perf session when created and automatically ends it when it is dropped.
+pub struct PerfTrace(&'static str);
+
+impl PerfTrace {
+    pub fn new(region: &'static str) -> Self {
+        perf::begin(region);
+        Self(region)
+    }
+}
+
+impl Drop for PerfTrace {
+    fn drop(&mut self) {
+        perf::end(self.0);
+    }
+}
+
+#[macro_export]
+macro_rules! begin_perf {
+    () => {
+        let _guard = PerfTrace::new({
+            fn f() {}
+            fn type_name_of<T>(_: T) -> &'static str {
+                std::any::type_name::<T>()
+            }
+            let name = type_name_of(f);
+            name.strip_suffix("::f").unwrap()
+        });
+    };
+
+    ($region: tt) => {
+        let _guard = PerfTrace::new($region);
+    };
+}
+
+pub use begin_perf;

@@ -1,17 +1,18 @@
+use crate::ui::menu;
+use crate::window::{Render, Window};
+use anyhow::Result;
+use log::{error, info, warn};
+use rustc_hash::FxHashMap;
 use std::collections::HashMap;
 use std::hash::RandomState;
 use std::time::{Duration, Instant};
-use log::{error, info, warn};
+use voxea_alloc::perf;
+use voxea_alloc::perf::PerfTrace;
 use winit::application::ApplicationHandler;
 use winit::event::{StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-use winit::window::{WindowAttributes, WindowId};
-use anyhow::Result;
-use rustc_hash::FxHashMap;
 use winit::platform::windows::WindowExtWindows;
-use voxea_alloc::perf;
-use crate::ui::menu;
-use crate::window::{Render, Window};
+use winit::window::{WindowAttributes, WindowId};
 
 #[derive(Default)]
 pub struct App {
@@ -27,11 +28,18 @@ impl App {
         Self {
             windows: FxHashMap::default(),
             on_start_callback: None,
-            wait_cancelled: false
+            wait_cancelled: false,
         }
     }
 
-    pub fn open_window(&mut self, event_loop: &ActiveEventLoop, window_attributes: Option<WindowAttributes>, view: Option<Box<dyn Render + 'static>>) -> Result<WindowId> {
+    pub fn open_window(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        window_attributes: Option<WindowAttributes>,
+        view: Option<Box<dyn Render + 'static>>,
+    ) -> Result<WindowId> {
+        perf::begin_perf!("app::open_window");
+
         let window = Window::new(event_loop, window_attributes, view)?;
 
         let id = window.window.id();
@@ -67,8 +75,8 @@ impl App {
 
     pub fn run<F>(mut self, event_loop: EventLoop<()>, on_start_callback: F)
     where
-        F: FnOnce(&mut App, &ActiveEventLoop) + 'static {
-
+        F: FnOnce(&mut App, &ActiveEventLoop) + 'static,
+    {
         self.on_start_callback = Some(Box::new(on_start_callback));
 
         let _ = event_loop.run_app(&mut self);
@@ -93,7 +101,7 @@ impl ApplicationHandler for App {
         window_id: WindowId,
         event: WindowEvent,
     ) {
-        perf::begin("app::window_event");
+        perf::begin_perf!("app::window_event");
 
         // Moves ownership of the window to the current scope to avoid double borrowing
         let Some(mut window) = self
@@ -130,13 +138,16 @@ impl ApplicationHandler for App {
         if self.windows.is_empty() {
             event_loop.exit();
         }
-
-        perf::end("app::window_event");
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         if !self.wait_cancelled {
-            for window in self.windows.values().filter_map(|w| w.as_ref()).filter(|w| w.running) {
+            for window in self
+                .windows
+                .values()
+                .filter_map(|w| w.as_ref())
+                .filter(|w| w.running)
+            {
                 window.request_redraw();
             }
 
