@@ -1,10 +1,7 @@
 use crate::ui::settings;
 use crate::window::{Render, WindowContext};
 use crate::{plugin, App};
-use cpal::traits::DeviceTrait;
 use egui::{pos2, Color32};
-use egui_dropdown::DropDownBox;
-use log::info;
 use winit::dpi::PhysicalSize;
 use winit::event_loop::ActiveEventLoop;
 use winit::platform::windows::WindowExtWindows;
@@ -30,7 +27,7 @@ impl Render for Menu {
     fn render(&mut self, cx: &mut WindowContext, event_loop: &ActiveEventLoop) {
         plugin::process_signal();
 
-        let mut window = &mut cx.window;
+        let window = &mut cx.window;
 
         let app = &mut cx.app;
 

@@ -1,19 +1,23 @@
-use anyhow::Result;
+use std::fs;
+use anyhow::{anyhow, Result};
 use std::sync::OnceLock;
+use log::warn;
 use wasmtime::component::{Component, Linker, ResourceTable};
 use wasmtime::{Config, Engine, Store};
 use wasmtime_wasi::{WasiCtx, WasiCtxBuilder, WasiView};
 
-static mut REGISTRY: OnceLock<Vec<Plugin>> = OnceLock::new();
-static mut STORE: OnceLock<Store<MyState>> = OnceLock::new();
-static mut SIGNAL: OnceLock<Vec<f64>> = OnceLock::new();
+pub struct PluginContext {
+    pub(crate) plugins: Vec<Plugin>,
+    pub(crate) engine: Engine,
+    pub(crate) linker: Linker<MyState>,
 
-pub fn run_plugins() -> Result<()> {
-    unsafe {
-        REGISTRY.get_or_init(|| Vec::new());
-        SIGNAL.get_or_init(|| vec![32.0, 24.0, 16.0]);
-    }
+    pub(crate) store: Store<MyState>,
+    pub(crate) signal: Vec<f64>,
+}
 
+static mut CONTEXT: OnceLock<PluginContext> = OnceLock::new();
+
+pub fn init() -> Result<()> {
     // Modules can be compiled through either the text or binary format
     let mut config = Config::new();
     config.async_support(false);
@@ -39,8 +43,10 @@ pub fn run_plugins() -> Result<()> {
     })?;
 
     registry.func_wrap::<_, _, (f64,)>("get-signal", |_, param: (u64,)| unsafe {
-        let signal = SIGNAL
-            .get_or_init(|| Vec::new())
+        let signal = CONTEXT
+            .get()
+            .expect("Plugin Context not initialized!")
+            .signal
             .get(param.0 as usize)
             .unwrap();
         Ok((*signal,))
@@ -60,23 +66,46 @@ pub fn run_plugins() -> Result<()> {
 
     wasmtime_wasi::add_to_linker_sync(&mut linker)?;
 
-    let plugins = ["test_plugin"];
+    let cx = PluginContext {
+        plugins: Vec::new(),
+        engine,
+        linker,
+        store,
+        signal: vec![32.0, 24.0, 16.0]
+    };
+
+    unsafe {
+        CONTEXT.get_or_init(|| cx);
+        Ok(())
+    }
+}
+
+pub fn load_plugins() -> Result<()> {
+    let Some(mut cx) = (unsafe { CONTEXT.get_mut() }) else {
+        warn!("Could not load plugins! Plugin Context not initialized!");
+        return Err(anyhow!("Could not load plugins!"));
+    };
+
+    let paths = fs::read_dir("./plugins").expect("Could not read plugins directory!");
+
+    let plugins = paths
+        .into_iter()
+        .filter_map(|p| p.ok())
+        .map(|p| p.path())
+        .filter(|path| path.extension().map_or(false, |ext| ext == "wasm"));
+
     for plugin in plugins {
-        let component = Component::from_file(&engine, "plugins/".to_owned() + plugin + ".wasm")?;
-        let instance = Plugin::instantiate(&mut store, &component, &linker)?;
+        let component = Component::from_file(&cx.engine, plugin.to_str().unwrap())?;
+        let instance = Plugin::instantiate(&mut cx.store, &component, &cx.linker)?;
         let result = instance
             .sdk_component_plugin_api()
-            .call_enable(&mut store)?;
+            .call_enable(&mut cx.store)?;
 
         println!("{:?}", result);
 
         unsafe {
-            REGISTRY.get_mut_or_init(|| Vec::new()).push(instance);
+            cx.plugins.push(instance);
         }
-    }
-
-    unsafe {
-        STORE.get_or_init(|| store);
     }
 
     Ok(())
@@ -84,13 +113,18 @@ pub fn run_plugins() -> Result<()> {
 
 pub fn process_signal() {
     unsafe {
+        let Some(mut cx) = CONTEXT.get_mut() else {
+            warn!("Plugin Context not initialized!");
+            return;
+        };
+
         let signal = [32.0, 24.0, 16.0];
         let signal = signal.as_ptr() as u64;
 
-        for plugin in REGISTRY.get_or_init(|| Vec::new()) {
+        for plugin in &cx.plugins {
             plugin
                 .sdk_component_plugin_api()
-                .call_process_signal(STORE.get_mut().unwrap(), signal)
+                .call_process_signal(&mut cx.store, signal)
                 .unwrap();
         }
     }

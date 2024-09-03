@@ -97,7 +97,7 @@ impl RenderContext {
             multiview: None,
         });
 
-        let mut config = surface.get_default_config(&adapter, width, height).unwrap();
+        let config = surface.get_default_config(&adapter, width, height).unwrap();
         info!("{:?}", config);
 
         surface.configure(&device, &config);

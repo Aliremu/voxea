@@ -12,8 +12,8 @@ interface plugin-api {
 }
 
 interface registry {
-    add-entity: func(name: string) -> bool;
     get-signal: func(idx: u64) -> f64;
+    set-signal: func(idx: u64, val: f64) -> f64;
 }
 
 world plugin {

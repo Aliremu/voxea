@@ -2,11 +2,10 @@ use crate::app::App;
 use crate::window::{Render, WindowContext};
 use cpal::traits::DeviceTrait;
 use egui::vec2;
-use egui_extras::StripBuilder;
 use log::info;
 use voxea_alloc::perf;
 use voxea_alloc::perf::PerfTrace;
-use winit::dpi::{LogicalSize, PhysicalSize};
+use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
 use winit::platform::windows::{WindowAttributesExtWindows, WindowExtWindows};
@@ -148,7 +147,7 @@ impl Render for Settings {
     }
 
     fn render(&mut self, cx: &mut WindowContext, event_loop: &ActiveEventLoop) {
-        let mut window = &mut cx.window;
+        let window = &mut cx.window;
         let inner_size = window
             .window
             .inner_size()

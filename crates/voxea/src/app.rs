@@ -1,10 +1,7 @@
-use crate::ui::menu;
 use crate::window::{Render, Window};
 use anyhow::Result;
-use log::{error, info, warn};
+use log::{error, warn};
 use rustc_hash::FxHashMap;
-use std::collections::HashMap;
-use std::hash::RandomState;
 use std::time::{Duration, Instant};
 use voxea_alloc::perf;
 use voxea_alloc::perf::PerfTrace;

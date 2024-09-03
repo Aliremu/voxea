@@ -5741,6 +5741,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "zero_plugin"
+version = "0.1.0"
+dependencies = [
+ "pollster",
+ "reqwest",
+ "voxea_plugin",
+ "wit-bindgen-rt",
+]
+
+[[package]]
 name = "zerocopy"
 version = "0.7.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"

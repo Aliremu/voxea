@@ -303,3 +303,9 @@ where
         }
     }
 }
+
+fn decode_wav_file(file: String) -> Result<()>{
+    let wav = hound::WavReader::open(file)?;
+
+    Ok(())
+}
