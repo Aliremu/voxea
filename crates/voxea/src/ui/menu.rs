@@ -25,7 +25,7 @@ pub struct Menu {}
 
 impl Render for Menu {
     fn render(&mut self, cx: &mut WindowContext, event_loop: &ActiveEventLoop) {
-        plugin::process_signal();
+        // plugin::process_signal();
 
         let window = &mut cx.window;
 

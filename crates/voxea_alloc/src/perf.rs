@@ -130,6 +130,14 @@ pub fn dealloc(size: usize) {
     get_mut(region).unwrap().memory.freed += size;
 }
 
+pub fn total_memory() -> (usize, usize) {
+    if let Some(stats) = memory_stats::memory_stats() {
+        (stats.physical_mem, stats.virtual_mem)
+    } else {
+        (0, 0)
+    }
+}
+
 /// Struct that starts a perf session when created and automatically ends it when it is dropped.
 pub struct PerfTrace(&'static str);
 

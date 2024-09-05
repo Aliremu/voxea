@@ -1,7 +1,7 @@
 use std::fs;
 use anyhow::{anyhow, Result};
 use std::sync::OnceLock;
-use log::warn;
+use log::{info, warn};
 use wasmtime::component::{Component, Linker, ResourceTable};
 use wasmtime::{Config, Engine, Store};
 use wasmtime_wasi::{WasiCtx, WasiCtxBuilder, WasiView};
@@ -37,14 +37,19 @@ pub fn init() -> Result<()> {
 
     let mut registry = linker.instance("sdk:component/registry")?;
 
-    registry.func_wrap::<_, _, (bool,)>("add-entity", |_, param: (String,)| {
-        println!("Adding entity {}", param.0);
-        Ok((false,))
-    })?;
-
     registry.func_wrap::<_, _, (f64,)>("get-signal", |_, param: (u64,)| unsafe {
         let signal = CONTEXT
             .get()
+            .expect("Plugin Context not initialized!")
+            .signal
+            .get(param.0 as usize)
+            .unwrap();
+        Ok((*signal,))
+    })?;
+
+    registry.func_wrap::<_, _, (f64,)>("set-signal", |_, param: (u64, f64)| unsafe {
+        let signal = CONTEXT
+            .get_mut()
             .expect("Plugin Context not initialized!")
             .signal
             .get(param.0 as usize)
@@ -95,8 +100,10 @@ pub fn load_plugins() -> Result<()> {
         .filter(|path| path.extension().map_or(false, |ext| ext == "wasm"));
 
     for plugin in plugins {
+        info!("Loading {}!", plugin.to_str().unwrap());
         let component = Component::from_file(&cx.engine, plugin.to_str().unwrap())?;
         let instance = Plugin::instantiate(&mut cx.store, &component, &cx.linker)?;
+        info!("Enabling {}!", plugin.to_str().unwrap());
         let result = instance
             .sdk_component_plugin_api()
             .call_enable(&mut cx.store)?;
@@ -122,11 +129,17 @@ pub fn process_signal() {
         let signal = signal.as_ptr() as u64;
 
         for plugin in &cx.plugins {
-            plugin
-                .sdk_component_plugin_api()
-                .call_process_signal(&mut cx.store, signal)
-                .unwrap();
+            // plugin
+            //     .sdk_component_plugin_api()
+            //     .call_process_signal(&mut cx.store, signal)
+            //     .unwrap();
         }
+    }
+}
+
+pub fn get_plugins() -> usize {
+    unsafe {
+        CONTEXT.get().unwrap().plugins.len()
     }
 }
 

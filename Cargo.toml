@@ -1,12 +1,13 @@
 [workspace]
 members = [
     "crates/voxea",
-    "crates/egui_winit" ,
+    "crates/egui_winit",
     "crates/voxea_audio",
     "crates/voxea_alloc",
     "crates/voxea_plugin",
-    "examples/test_plugin"
-, "examples/zero_plugin"]
+    "examples/test_plugin",
+    "examples/zero_plugin"
+]
 default-members = ["crates/voxea"]
 resolver = "2"
 

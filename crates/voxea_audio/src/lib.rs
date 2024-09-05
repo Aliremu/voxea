@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use anyhow::Result;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{
@@ -305,7 +306,7 @@ where
 }
 
 fn decode_wav_file(file: String) -> Result<()>{
-    let wav = hound::WavReader::open(file)?;
+    let mut wav = hound::WavReader::open(file)?;
 
     Ok(())
 }

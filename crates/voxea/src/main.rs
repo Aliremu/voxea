@@ -37,7 +37,10 @@ fn main() -> Result<()> {
     let app = App::new();
     app.run(event_loop, |cx, event_loop| {
         menu::init(cx, event_loop);
-        plugin::load_plugins().unwrap();
+
+        std::thread::spawn(|| {
+            plugin::load_plugins().unwrap();
+        });
     });
 
     info!("Bye bye!");

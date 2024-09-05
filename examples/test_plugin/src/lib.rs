@@ -9,6 +9,9 @@ impl VoxeaPlugin for MyPlugin {
         map.insert(123, "hello");
         logger::log(map[&123]);
 
+        let file = include_bytes!("../assets/32.png");
+        logger::log(&format!("{:?}", file));
+
         2343
     }
 
@@ -25,4 +28,5 @@ impl VoxeaPlugin for MyPlugin {
         }
     }
 }
+
 voxea_plugin::export!(MyPlugin with_types_in voxea_plugin::bindings);

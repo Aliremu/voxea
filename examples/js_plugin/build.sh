@@ -1,0 +1,1 @@
+jco componentize index.js --wit ../../crates/voxea_plugin/wit/world.wit --world-name plugin --out js_plugin.wasm

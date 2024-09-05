@@ -11,6 +11,7 @@ use winit::event_loop::ActiveEventLoop;
 use winit::platform::windows::{WindowAttributesExtWindows, WindowExtWindows};
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::{Window as WinitWindow, WindowAttributes, WindowId};
+use crate::plugin;
 
 pub fn init(cx: &mut App, event_loop: &ActiveEventLoop, parent: &WinitWindow) {
     let window_handle = parent.window_handle().unwrap().as_raw();
@@ -258,7 +259,7 @@ impl Render for Settings {
                                 }
                             }
                         });
-                        ui.label("0 plugins loaded");
+                        ui.label(format!("{} plugins loaded", plugin::get_plugins()));
                     });
 
                     // StripBuilder::new(ui)
@@ -298,6 +299,9 @@ impl Render for Settings {
                                 stats.memory.peak_usage as f64 / 1000.0
                             ));
                         }
+
+                        let stats = perf::total_memory();
+                        ui.label(format!("{}, {}", stats.0, stats.1));
                         ui.allocate_space(vec2(ui.available_width(), 0.0));
                     });
                     //     });
