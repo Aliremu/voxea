@@ -10,12 +10,14 @@ use winit::event::{StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::platform::windows::WindowExtWindows;
 use winit::window::{WindowAttributes, WindowId};
+use crate::renderer::RenderContext;
 
 #[derive(Default)]
 pub struct App {
     pub(crate) windows: FxHashMap<WindowId, Option<Window>>,
     pub(crate) on_start_callback: Option<Box<dyn FnOnce(&mut App, &ActiveEventLoop)>>,
     pub(crate) wait_cancelled: bool,
+    pub(crate) render_context: Option<RenderContext>
 }
 
 const WAIT_TIME: Duration = Duration::from_micros(16666);
@@ -26,6 +28,7 @@ impl App {
             windows: FxHashMap::default(),
             on_start_callback: None,
             wait_cancelled: false,
+            render_context: None
         }
     }
 

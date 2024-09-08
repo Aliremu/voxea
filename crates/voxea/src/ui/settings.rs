@@ -159,7 +159,7 @@ impl Render for Settings {
 
         perf::begin_perf!();
 
-        window.cx.ui2(&window.window, |cx| {
+        window.ui2(|cx| {
             egui::CentralPanel::default().show(cx, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     let truncated = |s: &str, ui: &egui::Ui| {

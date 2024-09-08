@@ -1,3 +1,5 @@
 /target
 /.idea
+
+/vst3
 /examples/js_plugin/node_modules

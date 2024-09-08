@@ -10,7 +10,10 @@
       <sourceFolder url="file://$MODULE_DIR$/examples/test_plugin/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/text_plugin/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/zero_plugin/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/voxea_vst/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/voxea_vst/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
+      <excludeFolder url="file://$MODULE_DIR$/vst3" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

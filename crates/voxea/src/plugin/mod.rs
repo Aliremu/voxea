@@ -5,6 +5,7 @@ use log::{info, warn};
 use wasmtime::component::{Component, Linker, ResourceTable};
 use wasmtime::{Config, Engine, Store};
 use wasmtime_wasi::{WasiCtx, WasiCtxBuilder, WasiView};
+use crate::renderer;
 
 pub struct PluginContext {
     pub(crate) plugins: Vec<Plugin>,
@@ -103,6 +104,11 @@ pub fn load_plugins() -> Result<()> {
         info!("Loading {}!", plugin.to_str().unwrap());
         let component = Component::from_file(&cx.engine, plugin.to_str().unwrap())?;
         let instance = Plugin::instantiate(&mut cx.store, &component, &cx.linker)?;
+
+        let icon = instance.sdk_component_plugin_api().call_icon(&mut cx.store)?;
+
+        renderer::get_mut().create_texture_from_memory(&icon);
+
         info!("Enabling {}!", plugin.to_str().unwrap());
         let result = instance
             .sdk_component_plugin_api()
