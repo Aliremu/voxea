@@ -8,6 +8,8 @@ interface plugin-api {
     enable: func() -> s32;
     disable: func() -> s32;
 
+    icon: func() -> list<u8>;
+
     process-signal: func(ptr: u64);
 }
 

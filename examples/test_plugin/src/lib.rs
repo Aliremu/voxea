@@ -3,14 +3,16 @@ use voxea_plugin::{logger, registry, VoxeaPlugin};
 struct MyPlugin;
 
 impl VoxeaPlugin for MyPlugin {
+    fn icon() -> Vec<u8> {
+        let file = include_bytes!("../assets/32.png");
+        file.to_vec()
+    }
+
     fn enable() -> i32 {
         let mut map = HashMap::new();
 
         map.insert(123, "hello");
         logger::log(map[&123]);
-
-        let file = include_bytes!("../assets/32.png");
-        logger::log(&format!("{:?}", file));
 
         2343
     }

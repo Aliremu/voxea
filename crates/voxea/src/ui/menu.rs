@@ -1,7 +1,9 @@
 use crate::ui::settings;
 use crate::window::{Render, WindowContext};
-use crate::{plugin, App};
+use crate::{plugin, renderer, App};
 use egui::{pos2, Color32};
+use egui::load::SizedTexture;
+use log::info;
 use winit::dpi::PhysicalSize;
 use winit::event_loop::ActiveEventLoop;
 use winit::platform::windows::WindowExtWindows;
@@ -31,10 +33,12 @@ impl Render for Menu {
 
         let app = &mut cx.app;
 
-        window.cx.draw_triangle();
-        let texture_id = window.cx.fbo_id;
+        window.draw_triangle();
+        let texture_id = window.fbo_id;
 
-        window.cx.ui2(&window.window, |cx| {
+        let parent = window.window.clone();
+
+        window.ui2(|cx| {
             egui::TopBottomPanel::top("top_panel")
                 .exact_height(40.0)
                 .frame(egui::Frame::none().inner_margin(4.0))
@@ -47,10 +51,10 @@ impl Render for Menu {
                         let help = ui.button("Help");
 
                         if button.clicked() {
-                            settings::init(*app, event_loop, &window.window);
+                            settings::init(app, event_loop, &parent);
 
                             // Disables the parent window
-                            window.window.set_enable(false);
+                            parent.set_enable(false);
                         }
                     });
                 });
@@ -64,7 +68,18 @@ impl Render for Menu {
                     min: pos2(0.0, 0.0),
                     max: pos2(1.0, 1.0),
                 };
-                ui.painter().image(texture_id, rect, uv, Color32::WHITE);
+
+                let rend = renderer::get();
+
+                if rend.textures.len() > 0 {
+                    let img = SizedTexture::new(rend.textures.get(0).unwrap().2, ui.available_size());
+
+                    // info!("{:?}", rend.textures.get(0).unwrap());
+
+                    ui.add(egui::Image::new(img));
+                    // ui.painter().image(rend.textures.get(0).unwrap().2, rect, uv, Color32::from_rgba_premultiplied(255, 255, 255, 1));
+
+                }
             });
         });
     }

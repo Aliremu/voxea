@@ -7,7 +7,7 @@ members = [
     "crates/voxea_plugin",
     "examples/test_plugin",
     "examples/zero_plugin"
-]
+, "crates/voxea_vst"]
 default-members = ["crates/voxea"]
 resolver = "2"
 
@@ -26,6 +26,7 @@ egui = { version = "0.28.1" }
 egui-dropdown = "0.10.0"
 egui_extras = "0.28.1"
 egui-wgpu = { version = "0.28.1" }
+image = "0.25.2"
 log = "0.4.22"
 pollster = { version = "0.3.0", features = ["macro"] }
 rustc-hash = "2.0.0"
