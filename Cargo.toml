@@ -2,24 +2,29 @@
 members = [
     "crates/voxea",
     "crates/egui_winit",
-    "crates/voxea_audio",
     "crates/voxea_alloc",
+    "crates/voxea_audio",
+    "crates/voxea_macro",
     "crates/voxea_plugin",
+    "crates/voxea_vst",
+
     "examples/test_plugin",
     "examples/zero_plugin"
-, "crates/voxea_vst"]
+]
 default-members = ["crates/voxea"]
 resolver = "2"
 
 [workspace.dependencies]
 voxea = { path = "crates/voxea" }
-voxea_audio = { path = "crates/voxea_audio" }
 voxea_alloc = { path = "crates/voxea_alloc" }
+voxea_audio = { path = "crates/voxea_audio" }
+voxea_macro = { path = "crates/voxea_macro" }
 voxea_plugin = { path = "crates/voxea_plugin" }
+voxea_vst = { path = "crates/voxea_vst" }
 egui_winit = { path = "crates/egui_winit" }
 
 ahash = "0.8.11"
-anyhow = "1.0.86"
+anyhow = "1.0.87"
 cpal = { version = "0.15.3", features = ["asio"] }
 dirs = "5.0.1"
 egui = { version = "0.28.1" }
@@ -30,12 +35,12 @@ image = "0.25.2"
 log = "0.4.22"
 pollster = { version = "0.3.0", features = ["macro"] }
 rustc-hash = "2.0.0"
-serde = { version = "1.0.209", features = ["derive"] }
+serde = { version = "1.0.210", features = ["derive"] }
 thiserror = "1.0.63"
 tracing-subscriber = { version = "0.3.18", features = ["local-time"] }
 wasmtime = "24.0.0"
 wasmtime-wasi = "24.0.0"
-wgpu = { version = "0.20.0", default-features = true, features = [
+wgpu = { version = "0.20.1", default-features = true, features = [
     # Make the renderer `Sync` even on wasm32, because it makes the code simpler:
     "fragile-send-sync-non-atomic-wasm",
 ] }
