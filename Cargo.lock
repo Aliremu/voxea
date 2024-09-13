@@ -4739,6 +4739,7 @@ dependencies = [
  "voxea_alloc",
  "voxea_audio",
  "voxea_plugin",
+ "voxea_vst",
  "wasmtime",
  "wasmtime-wasi",
  "wgpu",
@@ -4791,6 +4792,7 @@ version = "0.1.0"
 dependencies = [
  "libc",
  "libloading 0.8.5",
+ "log",
  "voxea_macro",
  "winapi",
  "windows-core 0.58.0",

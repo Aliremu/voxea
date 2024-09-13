@@ -81,6 +81,13 @@ impl Interface {
             }
         });
 
+        let parent_supertrait = &self.parent.clone().map_or(quote!{}, |p| {
+            let impl_name = quote::format_ident!("{}_Impl", p);
+            quote! {
+                :#impl_name
+            }
+        });
+
         let methods = self.methods
             .iter()
             .map(|method| {
@@ -107,6 +114,7 @@ impl Interface {
                 let output = &method.sig.output;
 
                 quote! {
+                    #[inline]
                     unsafe fn #method_impl_ident(&mut self, #args) #output {
                         ((*(self.vtable)).#method_ident)(self, #arg_inputs)
                     }
@@ -118,6 +126,7 @@ impl Interface {
             .iter()
             .map(|method| {
                 let method_ident = &method.sig.ident;
+                let method_generics = &method.sig.generics;
                 let method_impl_ident = quote::format_ident!("{}_impl", &method.sig.ident);
                 let args = &method.sig.inputs
                     .iter()
@@ -139,9 +148,21 @@ impl Interface {
 
                 let output = &method.sig.output;
 
+                let body = quote! {
+                    (*(self as *mut _ as *mut #ident)).#method_impl_ident(#arg_inputs)
+                };
+                // method.default.clone().map_or(quote! {
+                //     (*(self as *mut _ as *mut #ident)).#method_impl_ident(#arg_inputs)
+                // }, |b| {
+                //     quote! {
+                //         #b
+                //     }
+                // });
+
                 quote! {
-                    unsafe fn #method_ident(&mut self, #args) #output {
-                         (*(self as *mut _ as *mut #ident)).#method_impl_ident(#arg_inputs)
+                    #[inline]
+                    unsafe fn #method_ident #method_generics(&mut self, #args) #output {
+                        #body
                     }
                 }
             })
@@ -158,6 +179,7 @@ impl Interface {
                 #(#methods)*
             }
 
+            #[allow(non_camel_case_types)]
             pub trait #impl_name {
                 #(#trait_methods)*
             }
@@ -192,7 +214,7 @@ impl Interface {
                 let output = &method.sig.output;
 
                 quote! {
-                    #ident: unsafe extern "thiscall" fn(this: *mut #name, #args) #output,
+                    pub #ident: unsafe extern "thiscall" fn(this: *mut #name, #args) #output,
                 }
             })
             .collect::<Vec<_>>();
@@ -200,11 +222,12 @@ impl Interface {
         let parent = &self.parent.clone().map(|p| {
             let vtable_name = quote::format_ident!("{}_Vtbl", p);
             quote! {
-                pub _base: #vtable_name,
+                pub base: #vtable_name,
             }
         });
 
         quote! {
+            #[allow(non_snake_case)]
             #[repr(C)]
             #[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq)]
             pub struct #vtable_name {

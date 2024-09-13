@@ -8,6 +8,7 @@ egui_winit.workspace = true
 voxea_audio.workspace = true
 voxea_alloc.workspace = true
 voxea_plugin.workspace = true
+voxea_vst.workspace = true
 
 anyhow.workspace = true
 cpal.workspace = true

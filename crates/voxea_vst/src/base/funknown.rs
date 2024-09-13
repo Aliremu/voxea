@@ -1,4 +1,4 @@
-use std::ffi::{c_void, CStr};
+use std::ffi::{c_float, c_void, CStr, CString};
 use std::fmt::Formatter;
 use libc::c_char;
 use voxea_macro::interface;
@@ -8,6 +8,8 @@ pub type FUID = [c_char; 16];
 pub trait Interface {
     type VTable;
     fn vtable(&self) -> &'static Self::VTable;
+
+    #[allow(non_upper_case_globals)]
     const iid: FUID;
 }
 
@@ -39,6 +41,12 @@ pub struct PClassInfo {
     pub cardinality: i32,
     pub category: [c_char; 32],
     pub name: [c_char; 64]
+}
+
+impl PClassInfo {
+    pub unsafe fn category(&self) -> String {
+        CStr::from_ptr(self.category.as_ptr()).to_str().unwrap().to_string()
+    }
 }
 
 impl Default for PClassInfo {
@@ -104,7 +112,7 @@ pub enum TResult {
 
 #[interface(0x00000000, 0x00000000, 0xC0000000, 0x00000046)]
 pub trait FUnknown {
-    fn query_interface(&mut self, iid: [c_char; 16], obj: *mut c_void) -> TResult;
+    fn query_interface(&mut self, iid: [c_char; 16], obj: *mut *mut c_void) -> TResult;
     fn add_ref(&mut self) -> u32;
     fn release(&mut self) -> u32;
 }
@@ -114,8 +122,11 @@ pub trait IPluginFactory: FUnknown {
     fn get_factory_info(&mut self, info: *mut PFactoryInfo) -> TResult;
     fn count_classes(&mut self) -> i32;
     fn get_class_info(&mut self, index: i32, info: *mut PClassInfo) -> TResult;
-    fn create_instance(&mut self, cid: [c_char; 16], iid: [c_char; 16], obj: *mut *mut c_void) -> TResult {
+    fn create_instance(&mut self, cid: [c_char; 16], iid: [c_char; 16], obj: *mut *mut c_void) -> TResult{
+        let mut tmp: *mut c_void = std::ptr::null_mut();
+        (*(self as *mut _ as *mut IPluginFactory)).create_instance_impl(cid, iid, &mut tmp);
 
+        &mut *(tmp as *mut T)
     }
 }
 
@@ -123,6 +134,26 @@ pub trait IPluginFactory: FUnknown {
 pub trait IPluginBase: FUnknown {
     fn initialize(&mut self, context: *mut FUnknown) -> TResult;
     fn terminate(&mut self) -> TResult;
+}
+
+#[interface(0x5BC32507, 0xD06049EA, 0xA6151B52, 0x2B755B29)]
+pub trait IPlugView: FUnknown {
+    fn is_platform_type_supported(&mut self, ty: *const c_char) -> TResult;
+    fn attached(&mut self, parent: *mut c_void, ty: *const c_char) -> TResult;
+    fn removed(&mut self) -> TResult;
+
+    fn on_wheel(&mut self, distance: f32) -> TResult;
+
+    fn on_key_down(&mut self, key: u16, key_code: i16, modifiers: i16) -> TResult;
+    fn on_key_up(&mut self, key: u16, key_code: i16, modifiers: i16) -> TResult;
+
+    fn on_size(&mut self, new_size: *const c_void) -> TResult;
+    fn on_focus(&mut self, state: bool) -> TResult;
+
+    fn set_frame(&mut self, frame: *const c_void) -> TResult;
+
+    fn can_resize() -> TResult;
+    fn check_size_constraint(&mut self, rect: *const c_void) -> TResult;
 }
 
 #[interface(0x42043F99, 0xB7DA453C, 0xA569E79D, 0x9AAEC33D)]
@@ -229,4 +260,18 @@ pub trait IEditController: IPluginBase {
     fn set_component_handler(&mut self, handler: *mut c_void) -> TResult;
 
     fn create_view(&mut self, name: *const c_char) -> *mut c_void;
+}
+
+#[interface(0x70A4156F, 0x6E6E4026, 0x989148BF, 0xAA60D8D1)]
+pub trait IConnectionPoint: FUnknown {
+    fn connect(&mut self, other: *mut IConnectionPoint) -> TResult;
+    fn disconnect(&mut self, other: *mut IConnectionPoint) -> TResult;
+    fn notify(&mut self, message: *mut c_void) -> TResult;
+}
+
+#[interface(0x936F033B, 0xC6C047DB, 0xBB0882F8, 0x13C1E613)]
+pub trait IMessage: FUnknown {
+    fn get_message_id(&mut self) -> *const c_char;
+    fn set_message_id(&mut self, id: *const c_char) -> ();
+    fn get_attributes(&mut self) -> *mut c_void;
 }

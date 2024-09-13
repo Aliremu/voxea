@@ -90,6 +90,8 @@ pub extern "stdcall" fn createInstance(this: *mut IHostApplication, cid: [c_char
     0
 }
 
+#[windows_interface::interface]
+
 impl IHostApplication {
     pub fn new() -> Self {
         Self {
@@ -364,29 +366,34 @@ pub extern "stdcall" fn release3(this: *mut Message) -> u32 {
 #[no_mangle]
 pub extern "stdcall" fn get_message_id(this: *mut Message) -> *const c_char {
     unsafe {
-        // CStr::from_bytes_with_nul_unchecked(b"init\0").as_ptr()
-        (*this).message
+        CStr::from_bytes_with_nul_unchecked(b"hello\0").as_ptr()
     }
 }
 
 #[no_mangle]
 pub extern "stdcall" fn set_message_id(this: *mut Message, id: *const c_char) -> () {
-    unsafe {
-        (*this).message = id;
-        warn!("Set Message Id: {:?}", CStr::from_ptr(id).to_str().unwrap());
-    }
+
 }
 
 #[no_mangle]
 pub extern "stdcall" fn get_attributes(this: *mut Message) -> *mut c_void {
-    let message = Box::new(AttributeList::new());
-    Box::into_raw(message) as *mut c_void
+    1 as *mut c_void
 }
 
+// #[repr(C)]
+// struct CustomMessage(IMessage);
+//
+// impl IMessage_Impl for CustomMessage {
+//
+// }
+//
+// #[repr(C)]
+// struct Message {
+//     vtable: &'static MessageVTable
+// }
 #[repr(C)]
 struct Message {
-    vtable: &'static MessageVTable,
-    message: *const c_char
+    vtable: &'static MessageVTable
 }
 
 impl Message {
@@ -400,84 +407,6 @@ impl Message {
                 get_message_id,
                 set_message_id,
                 get_attributes,
-            },
-            message: std::ptr::null_mut()
-        }
-    }
-}
-
-#[allow(non_snake_case)]
-#[repr(C)]
-struct AttributeListVTable {
-    pub queryInterface: unsafe extern "stdcall" fn(this: *mut AttributeList, _iid: [c_char; 16], obj: *mut *mut c_void) -> i32,
-    pub addRef: unsafe extern "stdcall" fn(this: *mut AttributeList) -> u32,
-    pub release: unsafe extern "stdcall" fn(this: *mut AttributeList) -> u32,
-
-    pub test1: unsafe extern "stdcall" fn(this: *mut AttributeList) -> TResult,
-    pub get_int: unsafe extern "stdcall" fn(this: *mut AttributeList, id: *const c_char, value: *mut i64) -> TResult,
-    pub test3: unsafe extern "stdcall" fn(this: *mut AttributeList) -> TResult,
-    pub test4: unsafe extern "stdcall" fn(this: *mut AttributeList) -> TResult,
-    pub test5: unsafe extern "stdcall" fn(this: *mut AttributeList) -> TResult,
-    pub test6: unsafe extern "stdcall" fn(this: *mut AttributeList) -> TResult,
-    pub test7: unsafe extern "stdcall" fn(this: *mut AttributeList) -> TResult,
-    pub test8: unsafe extern "stdcall" fn(this: *mut AttributeList) -> TResult,
-}
-
-
-#[no_mangle]
-pub extern "stdcall" fn queryInterface4(this: *mut AttributeList, _iid: [c_char; 16], obj: *mut *mut c_void) -> i32 {
-    unsafe {
-        *obj = this as *mut c_void;
-    }
-    0
-}
-
-#[no_mangle]
-pub extern "stdcall" fn addRef4(this: *mut AttributeList) -> u32 {
-    1000
-}
-
-#[no_mangle]
-pub extern "stdcall" fn release4(this: *mut AttributeList) -> u32 {
-    1000
-}
-
-#[no_mangle]
-pub extern "stdcall" fn get_int(this: *mut AttributeList, id: *const c_char, value: *mut i64) -> TResult {
-    unsafe {
-        *value = 1;
-        TResult::ResultOk
-    }
-}
-
-#[no_mangle]
-pub extern "stdcall" fn test(this: *mut AttributeList) -> TResult {
-    unsafe {
-        TResult::ResultOk
-    }
-}
-
-#[repr(C)]
-struct AttributeList {
-    vtable: &'static AttributeListVTable
-}
-
-impl AttributeList {
-    pub fn new() -> Self {
-        Self {
-            vtable: &AttributeListVTable {
-                queryInterface: queryInterface4,
-                addRef: addRef4,
-                release: release4,
-
-                test1: test,
-                get_int,
-                test3: test,
-                test4: test,
-                test5: test,
-                test6: test,
-                test7: test,
-                test8: test,
             }
         }
     }

@@ -5,8 +5,11 @@ use egui::{pos2, Color32};
 use egui::load::SizedTexture;
 use log::info;
 use winit::dpi::PhysicalSize;
+use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
-use winit::platform::windows::WindowExtWindows;
+use winit::keyboard::KeyCode;
+use winit::platform::windows::{WindowExtWindows, HWND};
+use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::WindowAttributes;
 
 pub fn init(cx: &mut App, event_loop: &ActiveEventLoop) {
@@ -26,6 +29,31 @@ pub fn init(cx: &mut App, event_loop: &ActiveEventLoop) {
 pub struct Menu {}
 
 impl Render for Menu {
+    fn window_event(&mut self, cx: &mut WindowContext, event_loop: &ActiveEventLoop, event: &WindowEvent) {
+        match event {
+            WindowEvent::KeyboardInput {
+                event,
+                is_synthetic,
+                ..
+            } => {
+                if !is_synthetic
+                    && !event.repeat
+                    && event.state == ElementState::Pressed
+                    && event.physical_key == KeyCode::KeyF
+                {
+                    let window_handle = cx.window.window.window_handle().unwrap().as_raw();
+
+                    let hwnd = match window_handle {
+                        RawWindowHandle::Win32(handle) => handle.hwnd.get(),
+                        _ => todo!("Not running on Windows"),
+                    };
+                    voxea_vst::load_vst(hwnd as HWND);
+                }
+            }
+
+            _ => {}
+        }
+    }
     fn render(&mut self, cx: &mut WindowContext, event_loop: &ActiveEventLoop) {
         // plugin::process_signal();
 

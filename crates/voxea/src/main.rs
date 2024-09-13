@@ -26,7 +26,6 @@ fn main() -> Result<()> {
 
     tracing_subscriber::fmt()
         .with_timer(LocalTime::rfc_3339())
-        .with_ansi(false)
         .init();
 
     plugin::init()?;
