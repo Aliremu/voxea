@@ -37,7 +37,7 @@ impl App {
         event_loop: &ActiveEventLoop,
         window_attributes: Option<WindowAttributes>,
         view: Option<Box<dyn Render + 'static>>,
-    ) -> Result<WindowId> {
+    ) -> Result<&Option<Window>> {
         perf::begin_perf!("app::open_window");
 
         let window = Window::new(event_loop, window_attributes, view)?;
@@ -45,7 +45,7 @@ impl App {
         let id = window.window.id();
         self.windows.insert(id, Some(window));
 
-        Ok(id)
+        Ok(self.windows.get(&id).unwrap())
     }
 
     pub fn get_window(&mut self, window_id: &WindowId) -> Option<&mut Window> {

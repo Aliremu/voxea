@@ -1,4 +1,4 @@
-use crate::ui::settings;
+use crate::ui::{plugview, settings};
 use crate::window::{Render, WindowContext};
 use crate::{plugin, renderer, App};
 use egui::{pos2, Color32};
@@ -17,7 +17,7 @@ pub fn init(cx: &mut App, event_loop: &ActiveEventLoop) {
         .with_title("Voxea 0.1")
         .with_inner_size(PhysicalSize::new(1600, 900));
 
-    cx.open_window(
+    let window = cx.open_window(
         event_loop,
         Some(window_attributes),
         Some(Box::new(Menu::default())),
@@ -41,13 +41,7 @@ impl Render for Menu {
                     && event.state == ElementState::Pressed
                     && event.physical_key == KeyCode::KeyF
                 {
-                    let window_handle = cx.window.window.window_handle().unwrap().as_raw();
-
-                    let hwnd = match window_handle {
-                        RawWindowHandle::Win32(handle) => handle.hwnd.get(),
-                        _ => todo!("Not running on Windows"),
-                    };
-                    voxea_vst::load_vst(hwnd as HWND);
+                    plugview::init(cx.app, event_loop);
                 }
             }
 

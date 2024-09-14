@@ -1,5 +1,5 @@
 #![feature(fn_traits)]
-
+#![allow(warnings)]
 // #[repr(C)]
 // #[derive(Debug, Default, Copy, Clone)]
 // pub struct FUID(u32, u32, u32, u32);
@@ -50,7 +50,7 @@ struct IHostApplication {
 
 #[no_mangle]
 pub extern "stdcall" fn queryInterface(this: *mut IHostApplication, iid: [c_char; 16], obj: *mut *mut c_void) -> i32 {
-    warn!("iid: {:?}", iid);
+    warn!("IHostApplication queryInterface: {:?}", iid);
     unsafe {
         *obj = this as *mut c_void;
     }
@@ -70,6 +70,7 @@ pub extern "stdcall" fn release(this: *mut IHostApplication) -> u32 {
 
 #[no_mangle]
 pub extern "stdcall" fn getName(this: *mut IHostApplication, name: &mut [u16; 128]) -> i32 {
+    warn!("IHostApplication::getName");
     name[0] = u16::try_from('N').unwrap();
     name[1] = 0;
 
@@ -108,27 +109,40 @@ impl IHostApplication {
 #[allow(non_snake_case)]
 #[repr(C)]
 struct IComponentHandlerVTable {
-    pub queryInterface: unsafe extern "stdcall" fn(this: *mut IComponentHandler, _iid: [c_char; 16], obj: *mut *mut c_void) -> i32,
+    pub queryInterface: unsafe extern "stdcall" fn(this: *mut IComponentHandler, iid: [c_char; 16], obj: *mut *mut c_void) -> i32,
     pub addRef: unsafe extern "stdcall" fn(this: *mut IComponentHandler) -> u32,
     pub release: unsafe extern "stdcall" fn(this: *mut IComponentHandler) -> u32,
 
-    pub getName: unsafe extern "stdcall" fn(this: *mut IHostApplication, name: &mut [u16; 128]) -> i32,
-    pub createInstance: unsafe extern "stdcall" fn(this: *mut IHostApplication, cid: [c_char; 16], iid: [c_char; 16], obj: *mut *mut c_void) -> i32,
+    // pub getName: unsafe extern "stdcall" fn(this: *mut IHostApplication, name: &mut [u16; 128]) -> i32,
+    // pub createInstance: unsafe extern "stdcall" fn(this: *mut IHostApplication, cid: [c_char; 16], iid: [c_char; 16], obj: *mut *mut c_void) -> i32,
 
-    pub beginEdit: unsafe extern "stdcall" fn(this: *mut IComponentHandler, id: u32) -> i32,
-    pub performEdit : unsafe extern "stdcall" fn(this: *mut IComponentHandler, id: u32, value: u32) -> i32,
-    pub endEdit: unsafe extern "stdcall" fn(this: *mut IComponentHandler, id: u32) -> i32,
-    pub restartComponent: unsafe extern "stdcall" fn(this: *mut IComponentHandler, flags: i32) -> i32,
+    // pub beginEdit: unsafe extern "stdcall" fn(this: *mut IComponentHandler, id: u32) -> TResult,
+    // pub performEdit : unsafe extern "stdcall" fn(this: *mut IComponentHandler, id: u32, value: u32) -> TResult,
+    // pub endEdit: unsafe extern "stdcall" fn(this: *mut IComponentHandler, id: u32) -> TResult,
+    // pub restartComponent: unsafe extern "stdcall" fn(this: *mut IComponentHandler, flags: i32) -> TResult,
 
-    pub isPlugInterfaceSupported: unsafe extern "stdcall" fn(this: *mut IComponentHandler, fuid: FUID) -> i32,
+    pub setDirty: unsafe extern "stdcall" fn(this: *mut IComponentHandler, state: bool) -> TResult,
+    pub requestOpenEditor : unsafe extern "stdcall" fn(this: *mut IComponentHandler, name: *const c_char) -> TResult,
+    pub startGroupEdit: unsafe extern "stdcall" fn(this: *mut IComponentHandler) -> TResult,
+    pub finishGroupEdit: unsafe extern "stdcall" fn(this: *mut IComponentHandler) -> TResult,
 
+    pub test1: unsafe extern "stdcall" fn(this: *mut IComponentHandler) -> TResult,
+    pub test2: unsafe extern "stdcall" fn(this: *mut IComponentHandler) -> TResult,
+    pub test3: unsafe extern "stdcall" fn(this: *mut IComponentHandler) -> TResult,
+    pub test4: unsafe extern "stdcall" fn(this: *mut IComponentHandler) -> TResult,
 }
 
 
 #[no_mangle]
-pub extern "stdcall" fn queryInterface2(this: *mut IComponentHandler, _iid: [c_char; 16], obj: *mut *mut c_void) -> i32 {
+pub extern "stdcall" fn queryInterface2(this: *mut IComponentHandler, iid: [c_char; 16], obj: *mut *mut c_void) -> i32 {
+    warn!("IComponentHandler queryInterface: {:?} {:?}", uid_to_ascii(iid), iid);
     unsafe {
-        *obj = this as *mut c_void;
+        if iid == [-52, -107, -27, 88, 45, -37, 105, 73, -117, 106, -81, -116, 54, -90, 100, -27] {
+            let host = Box::new(IHostApplication::new());
+            *obj = Box::into_raw(host) as *mut c_void;
+        } else {
+            *obj = this as *mut c_void;
+        }
     }
     0
 }
@@ -144,28 +158,59 @@ pub extern "stdcall" fn release2(this: *mut IComponentHandler) -> u32 {
 }
 
 #[no_mangle]
-pub extern "stdcall" fn beginEdit(this: *mut IComponentHandler, id: u32) -> i32 {
-    0
+pub extern "stdcall" fn beginEdit(this: *mut IComponentHandler, id: u32) -> TResult {
+    warn!("IComponentHandler::beginEdit");
+    TResult::ResultOk
 }
 
 #[no_mangle]
-pub extern "stdcall" fn performEdit(this: *mut IComponentHandler, id: u32, value: u32) -> i32 {
-    0
+pub extern "stdcall" fn performEdit(this: *mut IComponentHandler, id: u32, value: u32) -> TResult {
+    warn!("IComponentHandler::performEdit");
+    TResult::ResultOk
 }
 
 #[no_mangle]
-pub extern "stdcall" fn endEdit(this: *mut IComponentHandler, id: u32) -> i32 {
-    0
+pub extern "stdcall" fn endEdit(this: *mut IComponentHandler, id: u32) -> TResult {
+    warn!("IComponentHandler::endEdit");
+    TResult::ResultOk
 }
 
 #[no_mangle]
-pub extern "stdcall" fn restartComponent(this: *mut IComponentHandler, flags: i32) -> i32 {
-    0
+pub extern "stdcall" fn restartComponent(this: *mut IComponentHandler, flags: i32) -> TResult {
+    warn!("IComponentHandler::restartComponent");
+    TResult::ResultOk
 }
 
 #[no_mangle]
-pub extern "stdcall" fn isPlugInterfaceSupported(this: *mut IComponentHandler, fuid: FUID) -> i32 {
-    0
+pub extern "stdcall" fn setDirty(this: *mut IComponentHandler, state: bool) -> TResult {
+    warn!("IComponentHandler::setDirty");
+    TResult::ResultOk
+}
+
+#[no_mangle]
+pub extern "stdcall" fn requestOpenEditor(this: *mut IComponentHandler, name: *const c_char) -> TResult {
+    unsafe {
+        warn!("requestOpenEditor: {:?}", CStr::from_ptr(name).to_str().unwrap());
+    }
+    TResult::ResultOk
+}
+
+#[no_mangle]
+pub extern "stdcall" fn startGroupEdit(this: *mut IComponentHandler) -> TResult {
+    warn!("IComponentHandler::startGroupEdit");
+    TResult::ResultOk
+}
+
+#[no_mangle]
+pub extern "stdcall" fn finishGroupEdit(this: *mut IComponentHandler) -> TResult {
+    warn!("IComponentHandler::finishGroupEdit");
+    TResult::ResultOk
+}
+
+#[no_mangle]
+pub extern "stdcall" fn test(this: *mut IComponentHandler) -> TResult {
+    warn!("IComponentHandler::test");
+    TResult::ResultOk
 }
 
 #[repr(C)]
@@ -181,59 +226,66 @@ impl IComponentHandler {
                 addRef: addRef2,
                 release: release2,
 
-                getName,
-                createInstance,
+                // beginEdit,
+                // performEdit,
+                // endEdit,
+                // restartComponent,
 
-                beginEdit,
-                performEdit,
-                endEdit,
-                restartComponent,
+                setDirty,
+                requestOpenEditor,
+                startGroupEdit,
+                finishGroupEdit,
 
-                isPlugInterfaceSupported
+                test1: test,
+                test2: test,
+                test3: test,
+                test4: test,
             }
         }
     }
 }
 
-//
-// fn uid_to_ascii(uid: [c_char; 16]) -> [u8; 37] {
-//     // Step 1: Convert [u8; 16] to a hex string (32 characters long)
-//     let hex_string = uid.iter()
-//         .map(|byte| format!("{:02X}", byte))  // Format each byte as 2 hex digits
-//         .collect::<String>();
-//
-//     let formatted_uid = format!(
-//         "{}{}{}{}{}{}{}{}{}",
-//         &hex_string[0..8],
-//         "-",
-//         &hex_string[8..12],
-//         "-",
-//         &hex_string[12..16],
-//         "-",
-//         &hex_string[16..20],
-//         "-",
-//         &hex_string[20..32]
-//     );
-//
-//     // Step 2: Convert the hex string into [u8; 32] of ASCII values
-//     let mut ascii_array = [0u8; 37];
-//     for (i, c) in formatted_uid.chars().enumerate() {
-//         ascii_array[i] = c as u8;  // Convert each char to its ASCII value
-//     }
-//
-//     ascii_array[36] = 0;
-//
-//     ascii_array
-// }
+
+fn uid_to_ascii(uid: [c_char; 16]) -> String {
+    // Step 1: Convert [u8; 16] to a hex string (32 characters long)
+    let hex_string = uid.iter()
+        .map(|byte| format!("{:02X}", byte))  // Format each byte as 2 hex digits
+        .collect::<String>();
+
+    let formatted_uid = format!(
+        "{}{}{}{}{}{}{}{}{}",
+        &hex_string[0..8],
+        "-",
+        &hex_string[8..12],
+        "-",
+        &hex_string[12..16],
+        "-",
+        &hex_string[16..20],
+        "-",
+        &hex_string[20..32]
+    );
+
+    formatted_uid
+
+    // // Step 2: Convert the hex string into [u8; 32] of ASCII values
+    // let mut ascii_array = [0u8; 37];
+    // for (i, c) in formatted_uid.chars().enumerate() {
+    //     ascii_array[i] = c as u8;  // Convert each char to its ASCII value
+    // }
+    //
+    // ascii_array[36] = 0;
+    //
+    // ascii_array
+}
 
 use std::ffi::{c_void, CStr, CString};
 use std::ptr::null_mut;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use libc::c_char;
 use libloading::{Library, Symbol};
 use winapi::shared::windef::HWND;
 use log::{info, warn};
-use crate::base::funknown::{FUnknown, FUnknown_Impl, IAudioProcessor, IComponent, IEditController, IPluginBase, IPluginFactory, IAudioProcessor_Impl, IComponent_Impl, IEditController_Impl, IPluginBase_Impl, IPluginFactory_Impl, Interface, PClassInfo, PFactoryInfo, TResult, FUID, IPlugView, IPlugView_Impl, IMessage, IMessage_Impl};
+use crate::base::funknown::{FUnknown, FUnknown_Impl, IAudioProcessor, IComponent, IEditController, IPluginBase, IPluginFactory, IAudioProcessor_Impl, IComponent_Impl, IEditController_Impl, IPluginBase_Impl, IPluginFactory_Impl, Interface, PClassInfo, PFactoryInfo, TResult, FUID, IPlugView, IPlugView_Impl, IMessage, IMessage_Impl, IConnectionPoint, IConnectionPoint_Impl};
 
 pub mod base;
 
@@ -241,14 +293,43 @@ type InitDllProc = fn() -> bool;
 type ExitDllProc = fn() -> bool;
 type GetPluginFactoryProc = fn() -> *mut IPluginFactory;
 
+struct VSTHostContext {
+    lib: Option<Library>,
+    factory: *mut IPluginFactory,
+    host: *mut IComponentHandler,
+    comp: *mut IComponent,
+    edit: *mut IEditController,
+    view: *mut IPlugView
+}
+
+impl Default for VSTHostContext {
+    fn default() -> Self {
+        Self {
+            lib: None,
+            factory: std::ptr::null_mut(),
+            host: std::ptr::null_mut(),
+            comp: std::ptr::null_mut(),
+            edit: std::ptr::null_mut(),
+            view: std::ptr::null_mut(),
+        }
+    }
+}
+
+static mut CONTEXT: OnceLock<Arc<VSTHostContext>> = OnceLock::new();
+
 pub fn load_vst(window: isize) {
     unsafe {
-        let lib = Library::new("../../../vst3/ZamDelay.vst3").unwrap();
+        let mut ctx = VSTHostContext::default();
+
+        let lib = Library::new("C:/Coding/RustRover/voxea/vst3/Archetype Nolly.vst3").unwrap();
         let init: Symbol<InitDllProc> = lib.get(b"InitDll").unwrap();
         init.call(());
 
         let raw_factory: Symbol<GetPluginFactoryProc> = lib.get::<GetPluginFactoryProc>(b"GetPluginFactory").unwrap();
         let raw_factory: *mut IPluginFactory = raw_factory.call(());
+
+        ctx.factory = raw_factory;
+
         let factory = &mut *raw_factory;
 
         println!("{}", factory.count_classes());
@@ -270,37 +351,59 @@ pub fn load_vst(window: isize) {
 
             let mut comp: *mut c_void = std::ptr::null_mut();
             let ret = factory.create_instance(class_info.cid, IComponent::iid, &mut comp);
+
+            ctx.comp = comp as *mut IComponent;
+
             let comp: &mut IComponent = &mut *(comp as *mut IComponent);
             if ret != TResult::ResultOk {
                 break;
             }
 
-            // comp.set_active(true);
             let foo_c = host.clone();
             let context = Arc::into_raw(foo_c) as *mut FUnknown;
             println!("Context: {:?}", context as *mut _);
-            let res = comp.initialize(context);
-            comp.set_active(true);
+            // let res = comp.initialize(context);
+            // comp.set_active(true);
             let mut edit_cid = FUID::default();
 
-            comp.get_controller_class_id(&mut edit_cid);
-
+            let res = comp.get_controller_class_id(&mut edit_cid);
             let mut edit: *mut c_void = std::ptr::null_mut();
-            let res = factory.create_instance(edit_cid, IEditController::iid, &mut edit);
+
+            if res != TResult::ResultOk {
+                let res = std::mem::transmute::<&mut IComponent, &mut FUnknown>(comp).query_interface(IEditController::iid, &mut edit);
+                println!("Initializing query_interface! {:?}", res);
+            } else {
+                let res = factory.create_instance(edit_cid, IEditController::iid, &mut edit);
+                println!("Initializing create_instance! {:?}", res);
+            }
+            ctx.edit = edit as *mut IEditController;
+
             let mut edit: &mut IEditController = &mut *(edit as *mut IEditController);
-            edit.set_component_handler(context as *mut c_void);
-            println!("initializing!");
+
             let res = edit.initialize(context);
-            let view = edit.get_parameter_count();
+
+            edit.set_component_handler(context as *mut c_void);
+
+            let mut iConnectionPointComponent: *mut c_void = std::ptr::null_mut();
+            let mut iConnectionPointController: *mut c_void = std::ptr::null_mut();
+            warn!("{:?}", std::mem::transmute::<&mut IComponent, &mut FUnknown>(comp).query_interface(IConnectionPoint::iid, &mut iConnectionPointComponent));
+            warn!("{:?}", std::mem::transmute::<&mut IEditController, &mut FUnknown>(edit).query_interface(IConnectionPoint::iid, &mut iConnectionPointController));
+
+            let mut iConnectionPointComponent: &mut IConnectionPoint = &mut *(iConnectionPointComponent as *mut IConnectionPoint);
+            let mut iConnectionPointController: &mut IConnectionPoint = &mut *(iConnectionPointController as *mut IConnectionPoint);
+
+            iConnectionPointComponent.connect(iConnectionPointController);
+            iConnectionPointController.connect(iConnectionPointComponent);
+
+            warn!("Parameter count: {}", edit.get_parameter_count());
             let name = CStr::from_bytes_with_nul_unchecked(b"editor\0");
 
             let view = edit.create_view(name.as_ptr());
+            ctx.view = view as *mut IPlugView;
             let mut view: &mut IPlugView = &mut *(view as *mut IPlugView);
             let ty = CStr::from_bytes_with_nul_unchecked(b"HWND\0");
             info!("View: {:?}", view);
             view.attached(window as *mut c_void, ty.as_ptr());
-
-            let mut point: *mut c_void = std::ptr::null_mut();
 
 
             println!("{} {:?} {:?} {:?} {:?}", class_info, comp as *mut _, edit as *mut _, context as *mut _, view);
@@ -308,10 +411,15 @@ pub fn load_vst(window: isize) {
 
         // factory.release();
 
-        let exit: Symbol<ExitDllProc> = lib.get(b"ExitDll").unwrap();
-        exit.call(());
+        warn!("Closing dll!");
 
-        lib.close().unwrap();
+        ctx.lib = Some(lib);
+        CONTEXT.get_or_init(|| Arc::new(ctx));
+
+        // let exit: Symbol<ExitDllProc> = lib.get(b"ExitDll").unwrap();
+        // exit.call(());
+
+        // lib.close().unwrap();
     }
 }
 
@@ -340,11 +448,16 @@ struct MessageVTable {
     pub get_message_id: unsafe extern "stdcall" fn(this: *mut Message) -> *const c_char,
     pub set_message_id: unsafe extern "stdcall" fn(this: *mut Message, id: *const c_char) -> (),
     pub get_attributes: unsafe extern "stdcall" fn(this: *mut Message) -> *mut c_void,
+
+    pub connect2: unsafe extern "stdcall" fn(this: *mut Message, other: *mut IConnectionPoint) -> TResult,
+    pub disconnect2: unsafe extern "stdcall" fn(this: *mut Message, other: *mut IConnectionPoint) -> TResult,
+    pub notify2: unsafe extern "stdcall" fn(this: *mut Message, message: *const c_char) -> TResult,
 }
 
 
 #[no_mangle]
-pub extern "stdcall" fn queryInterface3(this: *mut Message, _iid: [c_char; 16], obj: *mut *mut c_void) -> i32 {
+pub extern "stdcall" fn queryInterface3(this: *mut Message, iid: [c_char; 16], obj: *mut *mut c_void) -> i32 {
+    warn!("Message queryInterface: {:?}", iid);
     unsafe {
         *obj = this as *mut c_void;
     }
@@ -358,14 +471,25 @@ pub extern "stdcall" fn addRef3(this: *mut Message) -> u32 {
 
 #[no_mangle]
 pub extern "stdcall" fn release3(this: *mut Message) -> u32 {
+    warn!("unref!");
     1000
 }
 
 #[no_mangle]
 pub extern "stdcall" fn get_message_id(this: *mut Message) -> *const c_char {
     unsafe {
+        let msg = CStr::from_ptr((*this).message).to_str().unwrap();
+
+        warn!("Get Message Id: {:?}", msg);
+
+        if msg == "ready" {
+            CStr::from_bytes_with_nul_unchecked(b"ready\0").as_ptr()
+        } else {
+            (*this).message
+        }
+
         // CStr::from_bytes_with_nul_unchecked(b"init\0").as_ptr()
-        (*this).message
+
     }
 }
 
@@ -379,8 +503,30 @@ pub extern "stdcall" fn set_message_id(this: *mut Message, id: *const c_char) ->
 
 #[no_mangle]
 pub extern "stdcall" fn get_attributes(this: *mut Message) -> *mut c_void {
-    let message = Box::new(AttributeList::new());
+    warn!("get_attributes");
+
+    let message = Box::new([AttributeList::new(), AttributeList::new(), AttributeList::new(), AttributeList::new(), AttributeList::new(), AttributeList::new(), AttributeList::new(), AttributeList::new(), AttributeList::new(), AttributeList::new(), AttributeList::new(), AttributeList::new()]);
     Box::into_raw(message) as *mut c_void
+}
+
+#[no_mangle]
+pub extern "stdcall" fn connect2(this: *mut Message, other: *mut IConnectionPoint) -> TResult {
+    warn!("connect: {:?}", other as *mut _);
+    TResult::ResultOk
+}
+
+#[no_mangle]
+pub extern "stdcall" fn disconnect2(this: *mut Message, other: *mut IConnectionPoint) -> TResult {
+    warn!("disconnect: {:?}", other as *mut _);
+    TResult::ResultOk
+}
+
+#[no_mangle]
+pub extern "stdcall" fn notify2(this: *mut Message, message: *const c_char) -> TResult {
+    unsafe {
+        warn!("notify: {:?}", CStr::from_ptr(message).to_str().unwrap());
+    }
+    TResult::ResultOk
 }
 
 #[repr(C)]
@@ -400,6 +546,10 @@ impl Message {
                 get_message_id,
                 set_message_id,
                 get_attributes,
+
+                connect2,
+                disconnect2,
+                notify2
             },
             message: std::ptr::null_mut()
         }
@@ -413,19 +563,25 @@ struct AttributeListVTable {
     pub addRef: unsafe extern "stdcall" fn(this: *mut AttributeList) -> u32,
     pub release: unsafe extern "stdcall" fn(this: *mut AttributeList) -> u32,
 
-    pub test1: unsafe extern "stdcall" fn(this: *mut AttributeList) -> TResult,
+    pub set_int: unsafe extern "stdcall" fn(this: *mut AttributeList, id: *const c_char, value: i64) -> TResult,
     pub get_int: unsafe extern "stdcall" fn(this: *mut AttributeList, id: *const c_char, value: *mut i64) -> TResult,
-    pub test3: unsafe extern "stdcall" fn(this: *mut AttributeList) -> TResult,
-    pub test4: unsafe extern "stdcall" fn(this: *mut AttributeList) -> TResult,
-    pub test5: unsafe extern "stdcall" fn(this: *mut AttributeList) -> TResult,
-    pub test6: unsafe extern "stdcall" fn(this: *mut AttributeList) -> TResult,
-    pub test7: unsafe extern "stdcall" fn(this: *mut AttributeList) -> TResult,
-    pub test8: unsafe extern "stdcall" fn(this: *mut AttributeList) -> TResult,
+
+    pub set_float: unsafe extern "stdcall" fn(this: *mut AttributeList, id: *const c_char, value: *mut i64) -> TResult,
+    pub get_float: unsafe extern "stdcall" fn(this: *mut AttributeList, id: *const c_char, value: *mut f64) -> TResult,
+
+    pub set_string: unsafe extern "stdcall" fn(this: *mut AttributeList, id: *const c_char, value: *mut i64) -> TResult,
+    pub get_string: unsafe extern "stdcall" fn(this: *mut AttributeList, id: *const c_char, value: *mut i64) -> TResult,
+
+    pub set_binary: unsafe extern "stdcall" fn(this: *mut AttributeList, id: *const c_char, value: *mut i64) -> TResult,
+    pub get_binary: unsafe extern "stdcall" fn(this: *mut AttributeList, id: *const c_char, value: *mut i64) -> TResult,
+
+    pub bro: unsafe extern "stdcall" fn(this: *mut AttributeList, id: *const c_char, value: *mut i64) -> TResult,
 }
 
 
 #[no_mangle]
-pub extern "stdcall" fn queryInterface4(this: *mut AttributeList, _iid: [c_char; 16], obj: *mut *mut c_void) -> i32 {
+pub extern "stdcall" fn queryInterface4(this: *mut AttributeList, iid: [c_char; 16], obj: *mut *mut c_void) -> i32 {
+    warn!("AttributeList queryInterface: {:?}", iid);
     unsafe {
         *obj = this as *mut c_void;
     }
@@ -443,23 +599,100 @@ pub extern "stdcall" fn release4(this: *mut AttributeList) -> u32 {
 }
 
 #[no_mangle]
-pub extern "stdcall" fn get_int(this: *mut AttributeList, id: *const c_char, value: *mut i64) -> TResult {
+pub extern "stdcall" fn set_int(this: *mut AttributeList, id: *const c_char, value: i64) -> TResult {
     unsafe {
-        *value = 1;
+        warn!("set_int: {:?} {:?}", CStr::from_ptr(id).to_str().unwrap(), value);
+        if CStr::from_ptr(id).to_str().unwrap() == "__dpf_msg_target__" {
+            (*this).target = value;
+        } else {
+
+        }
         TResult::ResultOk
     }
 }
 
 #[no_mangle]
-pub extern "stdcall" fn test(this: *mut AttributeList) -> TResult {
+pub extern "stdcall" fn get_int(this: *mut AttributeList, id: *const c_char, value: *mut i64) -> TResult {
     unsafe {
+        warn!("get_int: {:?} {:?}", CStr::from_ptr(id).to_str().unwrap(), value);
+        if CStr::from_ptr(id).to_str().unwrap() == "__dpf_msg_target__" {
+            warn!("SETTING TO: {:?}", (*this).target);
+            *value = (*this).target;
+        } else {
+            *value = 10;
+        }
+
+        TResult::ResultOk
+    }
+}
+
+#[no_mangle]
+pub extern "stdcall" fn set_float(this: *mut AttributeList, id: *const c_char, value: *mut i64) -> TResult {
+    warn!("set_float: {:?} {:?}", id, value);
+    unsafe {
+        // *value = 1;
+        TResult::ResultOk
+    }
+}
+
+#[no_mangle]
+pub extern "stdcall" fn get_float(this: *mut AttributeList, id: *const c_char, value: *mut f64) -> TResult {
+    unsafe {
+        warn!("get_float: {:?} {:?}", CStr::from_ptr(id).to_str().unwrap(), value);
+        *value = 44100.0;
+        TResult::ResultOk
+    }
+}
+
+#[no_mangle]
+pub extern "stdcall" fn set_string(this: *mut AttributeList, id: *const c_char, value: *mut i64) -> TResult {
+    warn!("set_string: {:?} {:?}", id, value);
+    unsafe {
+        // *value = 1;
+        TResult::ResultOk
+    }
+}
+
+#[no_mangle]
+pub extern "stdcall" fn get_string(this: *mut AttributeList, id: *const c_char, value: *mut i64) -> TResult {
+    warn!("get_string: {:?} {:?}", id, value);
+    unsafe {
+        // *value = 1;
+        TResult::ResultOk
+    }
+}
+
+#[no_mangle]
+pub extern "stdcall" fn set_binary(this: *mut AttributeList, id: *const c_char, value: *mut i64) -> TResult {
+    warn!("set_binary: {:?} {:?}", id, value);
+    unsafe {
+        // *value = 1;
+        TResult::ResultOk
+    }
+}
+
+#[no_mangle]
+pub extern "stdcall" fn get_binary(this: *mut AttributeList, id: *const c_char, value: *mut i64) -> TResult {
+    warn!("get_binary: {:?} {:?}", id, value);
+    unsafe {
+        // *value = 1;
+        TResult::ResultOk
+    }
+}
+
+#[no_mangle]
+pub extern "stdcall" fn bro(this: *mut AttributeList, id: *const c_char, value: *mut i64) -> TResult {
+    warn!("bro: {:?} {:?}", id, value);
+    unsafe {
+        // *value = 1;
         TResult::ResultOk
     }
 }
 
 #[repr(C)]
 struct AttributeList {
-    vtable: &'static AttributeListVTable
+    vtable: &'static AttributeListVTable,
+    target: i64
 }
 
 impl AttributeList {
@@ -470,15 +703,17 @@ impl AttributeList {
                 addRef: addRef4,
                 release: release4,
 
-                test1: test,
+                set_int,
                 get_int,
-                test3: test,
-                test4: test,
-                test5: test,
-                test6: test,
-                test7: test,
-                test8: test,
-            }
+                set_float,
+                get_float,
+                set_string,
+                get_string,
+                set_binary,
+                get_binary,
+                bro
+            },
+            target: 1
         }
     }
 }

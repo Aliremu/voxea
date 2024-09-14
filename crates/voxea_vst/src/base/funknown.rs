@@ -212,6 +212,7 @@ pub trait IComponent: IPluginBase {
 }
 
 #[interface(0xDCD7BBE3, 0x7742448D, 0xA874AACC, 0x979C759E)]
+// #[interface(0x7F4EFE59, 0xF3204967, 0xAC27A3AE, 0xAFB63038)]
 pub trait IEditController: IPluginBase {
     fn set_component_state(&mut self, state: *mut c_void) -> TResult;
 
@@ -260,6 +261,10 @@ pub trait IEditController: IPluginBase {
     fn set_component_handler(&mut self, handler: *mut c_void) -> TResult;
 
     fn create_view(&mut self, name: *const c_char) -> *mut c_void;
+
+    fn set_knob_mode(&mut self, val: bool) -> TResult;
+    fn open_help(&mut self, val: bool) -> TResult;
+    fn open_about_box(&mut self, val: bool) -> TResult;
 }
 
 #[interface(0x70A4156F, 0x6E6E4026, 0x989148BF, 0xAA60D8D1)]
