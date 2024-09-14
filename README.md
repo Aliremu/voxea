@@ -20,3 +20,6 @@ cargo run --release
 - voxea_audio: Library for handling audio
 - voxea_vst: VST3 library
 - egui_winit: Forked from https://github.com/emilk/egui/tree/master/crates/egui-winit
+
+## Progress
+![Plugin Ui](./demos/img.png)

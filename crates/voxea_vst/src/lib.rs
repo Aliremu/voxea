@@ -317,11 +317,19 @@ impl Default for VSTHostContext {
 
 static mut CONTEXT: OnceLock<Arc<VSTHostContext>> = OnceLock::new();
 
-pub fn load_vst(window: isize) {
+pub fn load_vst(window: isize, plug: u32) {
     unsafe {
         let mut ctx = VSTHostContext::default();
 
-        let lib = Library::new("C:/Coding/RustRover/voxea/vst3/Archetype Nolly.vst3").unwrap();
+        let path = match plug {
+            1 => "C:/Coding/RustRover/voxea/vst3/Archetype Nolly.vst3",
+            2 => "C:/Coding/RustRover/voxea/vst3/LABS.vst3",
+            3 => "C:/Coding/RustRover/voxea/vst3/ZamDelay.vst3",
+
+            _ => unimplemented!()
+        };
+
+        let lib = Library::new(path).unwrap();
         let init: Symbol<InitDllProc> = lib.get(b"InitDll").unwrap();
         init.call(());
 

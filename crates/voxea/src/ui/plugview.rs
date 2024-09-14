@@ -12,7 +12,7 @@ use winit::platform::windows::{WindowExtWindows, HWND};
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::WindowAttributes;
 
-pub fn init(cx: &mut App, event_loop: &ActiveEventLoop) {
+pub fn init(cx: &mut App, event_loop: &ActiveEventLoop, plug: u32) {
     let window_attributes = WindowAttributes::default()
         .with_title("Plugin")
         .with_inner_size(PhysicalSize::new(1200, 800));
@@ -30,7 +30,7 @@ pub fn init(cx: &mut App, event_loop: &ActiveEventLoop) {
         _ => todo!("Not running on Windows"),
     };
 
-    voxea_vst::load_vst(hwnd as HWND);
+    voxea_vst::load_vst(hwnd as HWND, plug);
 }
 
 #[derive(Default)]

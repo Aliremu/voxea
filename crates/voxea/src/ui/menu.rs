@@ -39,9 +39,18 @@ impl Render for Menu {
                 if !is_synthetic
                     && !event.repeat
                     && event.state == ElementState::Pressed
-                    && event.physical_key == KeyCode::KeyF
                 {
-                    plugview::init(cx.app, event_loop);
+                    if event.physical_key == KeyCode::KeyJ {
+                        plugview::init(cx.app, event_loop, 1);
+                    }
+
+                    if event.physical_key == KeyCode::KeyK {
+                        plugview::init(cx.app, event_loop, 2);
+                    }
+
+                    if event.physical_key == KeyCode::KeyL {
+                        plugview::init(cx.app, event_loop, 3);
+                    }
                 }
             }
 
