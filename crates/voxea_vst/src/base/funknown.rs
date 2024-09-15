@@ -137,6 +137,7 @@ pub trait IPluginBase: FUnknown {
 }
 
 #[interface(0x5BC32507, 0xD06049EA, 0xA6151B52, 0x2B755B29)]
+// #[interface(0x367FAF01, 0xAFA94693, 0x8D4DA2A0, 0xED0882A3)]
 pub trait IPlugView: FUnknown {
     fn is_platform_type_supported(&mut self, ty: *const c_char) -> TResult;
     fn attached(&mut self, parent: *mut c_void, ty: *const c_char) -> TResult;
@@ -279,4 +280,9 @@ pub trait IMessage: FUnknown {
     fn get_message_id(&mut self) -> *const c_char;
     fn set_message_id(&mut self, id: *const c_char) -> ();
     fn get_attributes(&mut self) -> *mut c_void;
+}
+
+#[interface(0x65ED9690, 0x8AC44525, 0x8AADEF7A, 0x72EA703F)]
+pub trait IPlugViewContentScaleSupport: IPlugView {
+    fn set_content_scale_factor(&mut self, scale_factor: f32) -> TResult;
 }

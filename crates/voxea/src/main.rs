@@ -15,6 +15,7 @@ use voxea_alloc::perf;
 use voxea_alloc::perf::PerfTrace;
 use winit::event_loop::EventLoop;
 use anyhow::Result;
+use winit::platform::windows::EventLoopBuilderExtWindows;
 
 #[global_allocator]
 static GLOBAL: voxea_alloc::MemAllocator = voxea_alloc::MemAllocator::new();
@@ -32,6 +33,7 @@ fn main() -> Result<()> {
     renderer::init();
 
     let event_loop = EventLoop::builder()
+        .with_dpi_aware(false)
         .build()
         .expect("Could not create event loop!");
 

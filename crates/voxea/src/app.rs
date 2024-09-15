@@ -1,4 +1,4 @@
-use crate::window::{Render, Window};
+use crate::window::{Render, Window, WindowContext};
 use anyhow::Result;
 use log::{error, warn};
 use rustc_hash::FxHashMap;
@@ -40,7 +40,18 @@ impl App {
     ) -> Result<&Option<Window>> {
         perf::begin_perf!("app::open_window");
 
-        let window = Window::new(event_loop, window_attributes, view)?;
+        let mut window = Window::new(event_loop, window_attributes, view)?;
+
+        if let Some(mut view) = window.view.take() {
+            let mut cx = WindowContext {
+                app: self,
+                window: &mut window
+            };
+
+            view.on_open(&mut cx);
+
+            let _ = window.view.insert(view);
+        }
 
         let id = window.window.id();
         self.windows.insert(id, Some(window));

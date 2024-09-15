@@ -25,6 +25,9 @@ pub trait Render: 'static {
         event: &WindowEvent,
     ) {
     }
+
+    fn on_open(&mut self, cx: &mut WindowContext) {}
+
     fn render(&mut self, cx: &mut WindowContext, event_loop: &ActiveEventLoop);
 }
 
