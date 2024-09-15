@@ -77,14 +77,20 @@ impl Interface {
         let impl_parent = &self.parent.clone().map_or(quote!{}, |p| {
             let impl_name = quote::format_ident!("{}_Impl", p);
             quote! {
-                impl #impl_name for #ident {}
+                impl Marker<#p> for #ident {}
             }
         });
 
         let parent_supertrait = &self.parent.clone().map_or(quote!{}, |p| {
-            let impl_name = quote::format_ident!("{}_Impl", p);
-            quote! {
-                :#impl_name
+            if quote! {#p}.to_string() == "FUnknown" {
+                quote! {
+                    + FUnknown_Impl
+                }
+            } else {
+                let impl_name = quote::format_ident!("{}_Impl", p);
+                quote! {
+                    + Marker<#p>
+                }
             }
         });
 
@@ -148,20 +154,22 @@ impl Interface {
 
                 let output = &method.sig.output;
 
-                let body = quote! {
-                    (*(self as *mut _ as *mut #ident)).#method_impl_ident(#arg_inputs)
-                };
-                // method.default.clone().map_or(quote! {
-                //     (*(self as *mut _ as *mut #ident)).#method_impl_ident(#arg_inputs)
-                // }, |b| {
-                //     quote! {
-                //         #b
-                //     }
-                // });
+                // let body = quote! {
+                //     // (*(self as *mut _ as *mut #ident)).#method_impl_ident(#arg_inputs)
+                //     (std::mem::transmute::<&'static Self::VTable, &#vtable_name>(self.vtable()).#method_ident)(self as *mut _ as *mut #ident, #arg_inputs)
+                // };
+                let body = method.default.clone().map_or(quote! {
+                    (std::mem::transmute::<&'static Self::VTable, &#vtable_name>(self.vtable()).#method_ident)(self as *mut _ as *mut #ident, #arg_inputs)
+                }, |b| {
+                    quote! {
+                        #b
+                    }
+                });
 
                 quote! {
                     #[inline]
-                    unsafe fn #method_ident #method_generics(&mut self, #args) #output {
+                    unsafe fn #method_ident #method_generics(&mut self, #args) #output
+                    where <Self as Interface>::VTable: 'static {
                         #body
                     }
                 }
@@ -175,25 +183,26 @@ impl Interface {
                 pub vtable: &'static #vtable_name,
             }
 
-            impl #ident {
-                #(#methods)*
-            }
+            // impl #ident {
+            //     #(#methods)*
+            // }
 
             #[allow(non_camel_case_types)]
-            pub trait #impl_name {
+            pub trait #impl_name: Interface #parent_supertrait {
                 #(#trait_methods)*
             }
 
-            impl #impl_name for #ident {}
-
+            impl Marker<#ident> for #ident {}
             #impl_parent
+
+            impl<T: Interface + Marker<#ident> #parent_supertrait> #impl_name for T {}
 
             impl Interface for #ident {
                 type VTable = #vtable_name;
                 const iid: FUID = [#(#uid),*];
 
                 fn vtable(&self) -> &'static Self::VTable {
-                    &self.vtable
+                    self.vtable
                 }
             }
         }
@@ -204,6 +213,7 @@ impl Interface {
 
         let methods = self.methods
             .iter()
+            .filter(|method| method.default.is_none())
             .map(|method| {
                 let ident = &method.sig.ident;
                 let args = &method.sig.inputs

@@ -400,7 +400,7 @@ pub fn load_vst(plug: u32) -> Arc<VSTHostContext> {
             let mut edit: *mut c_void = std::ptr::null_mut();
 
             if res != TResult::ResultOk {
-                let res = std::mem::transmute::<&mut IComponent, &mut FUnknown>(comp).query_interface(IEditController::iid, &mut edit);
+                let res = comp.query_interface(IEditController::iid, &mut edit);
                 warn!("Initializing query_interface! {:?}", res);
             } else {
                 let res = factory.create_instance(edit_cid, IEditController::iid, &mut edit);
@@ -416,8 +416,8 @@ pub fn load_vst(plug: u32) -> Arc<VSTHostContext> {
 
             let mut iConnectionPointComponent: *mut c_void = std::ptr::null_mut();
             let mut iConnectionPointController: *mut c_void = std::ptr::null_mut();
-            warn!("{:?}", std::mem::transmute::<&mut IComponent, &mut FUnknown>(comp).query_interface(IConnectionPoint::iid, &mut iConnectionPointComponent));
-            warn!("{:?}", std::mem::transmute::<&mut IEditController, &mut FUnknown>(edit).query_interface(IConnectionPoint::iid, &mut iConnectionPointController));
+            warn!("{:?}", comp.query_interface(IConnectionPoint::iid, &mut iConnectionPointComponent));
+            warn!("{:?}", edit.query_interface(IConnectionPoint::iid, &mut iConnectionPointController));
 
             let mut iConnectionPointComponent: &mut IConnectionPoint = &mut *(iConnectionPointComponent as *mut IConnectionPoint);
             let mut iConnectionPointController: &mut IConnectionPoint = &mut *(iConnectionPointController as *mut IConnectionPoint);

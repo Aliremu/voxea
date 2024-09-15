@@ -5,6 +5,8 @@ use voxea_macro::interface;
 
 pub type FUID = [c_char; 16];
 
+pub trait Marker<T> {}
+
 pub trait Interface {
     type VTable;
     fn vtable(&self) -> &'static Self::VTable;
@@ -22,7 +24,7 @@ pub enum FactoryFlags {
     ClassesDiscardable = 1 << 0,
     LicenseCheck = 1 << 1,
     ComponentNonDiscardable = 1 << 3,
-    Unicode = 1 << 4
+    Unicode = 1 << 4,
 }
 
 #[repr(C)]
@@ -31,7 +33,7 @@ pub struct PFactoryInfo {
     pub vendor: [c_char; 64],
     pub url: [c_char; 256],
     pub email: [c_char; 128],
-    pub flags: FactoryFlags
+    pub flags: FactoryFlags,
 }
 
 #[repr(C)]
@@ -40,7 +42,7 @@ pub struct PClassInfo {
     pub cid: [c_char; 16],
     pub cardinality: i32,
     pub category: [c_char; 32],
-    pub name: [c_char; 64]
+    pub name: [c_char; 64],
 }
 
 impl PClassInfo {
@@ -100,34 +102,75 @@ impl std::fmt::Display for PClassInfo {
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq)]
 pub enum TResult {
-    NoInterface         = 0x80004002,   // E_NOINTERFACE
-    ResultOk            = 0,            // S_OK
-    ResultFalse         = 1,            // S_FALSE
-    InvalidArgument     = 0x80070057,	// E_INVALIDARG
-    NotImplemented      = 0x80004001,	// E_NOTIMPL
-    InternalError       = 0x80004005,	// E_FAIL
-    NotInitialized      = 0x8000FFFF,	// E_UNEXPECTED
-    OutOfMemory         = 0x8007000E    // E_OUTOFMEMORY
+    NoInterface = 0x80004002,   // E_NOINTERFACE
+    ResultOk = 0,            // S_OK
+    ResultFalse = 1,            // S_FALSE
+    InvalidArgument = 0x80070057,    // E_INVALIDARG
+    NotImplemented = 0x80004001,    // E_NOTIMPL
+    InternalError = 0x80004005,    // E_FAIL
+    NotInitialized = 0x8000FFFF,    // E_UNEXPECTED
+    OutOfMemory = 0x8007000E,    // E_OUTOFMEMORY
 }
 
-#[interface(0x00000000, 0x00000000, 0xC0000000, 0x00000046)]
-pub trait FUnknown {
-    fn query_interface(&mut self, iid: [c_char; 16], obj: *mut *mut c_void) -> TResult;
-    fn add_ref(&mut self) -> u32;
-    fn release(&mut self) -> u32;
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq)]
+pub struct FUnknown {
+    pub vtable: &'static FUnknown_Vtbl,
 }
+#[allow(non_camel_case_types)]
+pub trait FUnknown_Impl: Interface {
+    #[inline]
+    unsafe fn query_interface(&mut self, iid: [c_char; 16], obj: *mut *mut c_void) -> TResult
+    where
+        <Self as Interface>::VTable: 'static,
+    { (std::mem::transmute::<&'static Self::VTable, &FUnknown_Vtbl>(self.vtable()).query_interface)(self as *mut _ as *mut FUnknown, iid, obj) }
+    #[inline]
+    unsafe fn add_ref(&mut self) -> u32
+    where
+        <Self as Interface>::VTable: 'static,
+    { (std::mem::transmute::<&'static Self::VTable, &FUnknown_Vtbl>(self.vtable()).add_ref)(self as *mut _ as *mut FUnknown) }
+    #[inline]
+    unsafe fn release(&mut self) -> u32
+    where
+        <Self as Interface>::VTable: 'static,
+    { (std::mem::transmute::<&'static Self::VTable, &FUnknown_Vtbl>(self.vtable()).release)(self as *mut _ as *mut FUnknown) }
+}
+
+impl<T: Interface> FUnknown_Impl for T {}
+impl Interface for FUnknown {
+    type VTable = FUnknown_Vtbl;
+    const iid: FUID = [0i8, 0i8, 0i8, 0i8, 0i8, 0i8, 0i8, 0i8, -64i8, 0i8, 0i8, 0i8, 0i8, 0i8, 0i8, 70i8];
+    fn vtable(&self) -> &'static Self::VTable { self.vtable }
+}
+#[allow(non_snake_case)]
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq)]
+pub struct FUnknown_Vtbl {
+    pub query_interface: unsafe extern "thiscall" fn(this: *mut FUnknown, iid: [c_char; 16], obj: *mut *mut c_void) -> TResult,
+    pub add_ref: unsafe extern "thiscall" fn(this: *mut FUnknown) -> u32,
+    pub release: unsafe extern "thiscall" fn(this: *mut FUnknown) -> u32,
+}
+
+// #[interface(0x00000000, 0x00000000, 0xC0000000, 0x00000046)]
+// pub trait FUnknown {
+//     fn query_interface(&mut self, iid: [c_char; 16], obj: *mut *mut c_void) -> TResult;
+//     fn add_ref(&mut self) -> u32;
+//     fn release(&mut self) -> u32;
+// }
 
 #[interface(0x7A4D811C, 0x52114A1F, 0xAED9D2EE, 0x0B43BF9F)]
 pub trait IPluginFactory: FUnknown {
     fn get_factory_info(&mut self, info: *mut PFactoryInfo) -> TResult;
     fn count_classes(&mut self) -> i32;
     fn get_class_info(&mut self, index: i32, info: *mut PClassInfo) -> TResult;
-    fn create_instance(&mut self, cid: [c_char; 16], iid: [c_char; 16], obj: *mut *mut c_void) -> TResult{
-        let mut tmp: *mut c_void = std::ptr::null_mut();
-        (*(self as *mut _ as *mut IPluginFactory)).create_instance_impl(cid, iid, &mut tmp);
+    pub fn create_instance(&mut self, cid: [c_char; 16], iid: [c_char; 16], obj: *mut *mut c_void) -> TResult;
 
-        &mut *(tmp as *mut T)
-    }
+    // fn create_instance<T: Interface>(&mut self, cid: [c_char; 16], iid: [c_char; 16], obj: *mut *mut c_void) -> Result<&mut T, TResult> {
+    //     let mut tmp: *mut c_void = std::ptr::null_mut();
+    //     (std::mem::transmute::<&'static Self::VTable, &IPluginFactory_Vtbl>(self.vtable()).create_instance)(self as *mut _ as *mut IPluginFactory, cid, T::iid, &mut tmp);
+    //
+    //     Ok(&mut *(tmp as *mut T))
+    // }
 }
 
 #[interface(0x22888DDB, 0x156E45AE, 0x8358B348, 0x08190625)]
@@ -136,8 +179,8 @@ pub trait IPluginBase: FUnknown {
     fn terminate(&mut self) -> TResult;
 }
 
-#[interface(0x5BC32507, 0xD06049EA, 0xA6151B52, 0x2B755B29)]
 // #[interface(0x367FAF01, 0xAFA94693, 0x8D4DA2A0, 0xED0882A3)]
+#[interface(0x5BC32507, 0xD06049EA, 0xA6151B52, 0x2B755B29)]
 pub trait IPlugView: FUnknown {
     fn is_platform_type_supported(&mut self, ty: *const c_char) -> TResult;
     fn attached(&mut self, parent: *mut c_void, ty: *const c_char) -> TResult;
@@ -212,8 +255,9 @@ pub trait IComponent: IPluginBase {
     fn get_state(&mut self, state: *mut c_void) -> TResult;
 }
 
+// #[interface(0x7F4EFE59, 0xF3204967, 0xAC27A3AE, 0xAFB63038)] #IEditController2
+
 #[interface(0xDCD7BBE3, 0x7742448D, 0xA874AACC, 0x979C759E)]
-// #[interface(0x7F4EFE59, 0xF3204967, 0xAC27A3AE, 0xAFB63038)]
 pub trait IEditController: IPluginBase {
     fn set_component_state(&mut self, state: *mut c_void) -> TResult;
 
