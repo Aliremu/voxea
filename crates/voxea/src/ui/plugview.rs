@@ -4,9 +4,11 @@ use crate::{plugin, renderer, App};
 use egui::load::SizedTexture;
 use egui::{pos2, Color32};
 use log::info;
+use voxea_vst::vst::audio_processor::{AudioBusBuffers, HostParameterChanges, ProcessData, ProcessMode, SymbolicSampleSize};
 use std::ffi::c_void;
 use std::sync::Arc;
-use voxea_vst::base::funknown::{IPlugViewContentScaleSupport_Impl, IPlugView_Impl};
+use std::time::Duration;
+use voxea_vst::base::funknown::{IAudioProcessor_Impl, IPlugViewContentScaleSupport_Impl, IPlugView_Impl};
 use voxea_vst::VSTHostContext;
 use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, WindowEvent};
@@ -65,61 +67,65 @@ impl Render for PlugView {
         self.vst.attach(hwnd as HWND);
         let mut view = (*(self.vst)).view;
         // unsafe { (*view).(2.5); }
-        //
+        
+        let vst = self.vst.clone();
+
         std::thread::spawn(move || {
-            let mut processor = *(clone.processor);
-            let mut count = 0;
+            unsafe {
+                let mut processor = *(vst.processor);
+                let mut count = 0;
 
-            const block_size: usize = 128;
+                const block_size: usize = 128;
 
-            loop {
-                processor.set_processing(true);
+                loop {
+                    processor.set_processing(true);
 
-                let mut data1 = [0.25f32; block_size];
-                let mut data2 = [0.0f32; block_size];
+                    let mut data1 = [0.25f32; block_size];
+                    let mut data2 = [0.0f32; block_size];
 
-                let mut inputs: Vec<Option<&[f32; block_size]>> = vec![Some(&data1); 1];
-                let mut outputs: Vec<Option<&[f32; block_size]>> = vec![Some(&data2); 1];
+                    let mut inputs: Vec<Option<&[f32; block_size]>> = vec![Some(&data1); 1];
+                    let mut outputs: Vec<Option<&[f32; block_size]>> = vec![Some(&data2); 1];
 
-                let mut in_bus = AudioBusBuffers {
-                    num_channels: 1,
-                    silence_flags: 0,
-                    channel_buffers_32: inputs.as_mut_ptr() as *mut _,
-                };
+                    let mut in_bus = AudioBusBuffers {
+                        num_channels: 1,
+                        silence_flags: 0,
+                        channel_buffers_32: inputs.as_mut_ptr() as *mut _,
+                    };
 
-                let mut out_bus = AudioBusBuffers {
-                    num_channels: 1,
-                    silence_flags: 0,
-                    channel_buffers_32: outputs.as_mut_ptr() as *mut _,
-                };
+                    let mut out_bus = AudioBusBuffers {
+                        num_channels: 1,
+                        silence_flags: 0,
+                        channel_buffers_32: outputs.as_mut_ptr() as *mut _,
+                    };
 
-                // let mut out: *mut c_void = std::ptr::null_mut();
-                let mut data = ProcessData {
-                    process_mode: ProcessMode::Realtime,
-                    symbolic_sample_size: SymbolicSampleSize::Sample32,
-                    num_samples: 128,
-                    num_inputs: 1,
-                    num_outputs: 1,
-                    inputs: &mut in_bus,
-                    outputs: &mut out_bus,
-                    input_parameter_changes: Box::into_raw(HostParameterChanges::new()) as *mut _,
-                    output_parameter_changes: None,
-                    input_events: None,
-                    output_events: None,
-                    process_context: None,
-                };
+                    // let mut out: *mut c_void = std::ptr::null_mut();
+                    let mut data = ProcessData {
+                        process_mode: ProcessMode::Realtime,
+                        symbolic_sample_size: SymbolicSampleSize::Sample32,
+                        num_samples: 128,
+                        num_inputs: 1,
+                        num_outputs: 1,
+                        inputs: &mut in_bus,
+                        outputs: &mut out_bus,
+                        input_parameter_changes: Box::into_raw(HostParameterChanges::new()) as *mut _,
+                        output_parameter_changes: None,
+                        input_events: None,
+                        output_events: None,
+                        process_context: None,
+                    };
 
-                //let data = Arc::new(ProcessData::prepare(out, &inputs, &outputs));
+                    //let data = Arc::new(ProcessData::prepare(out, &inputs, &outputs));
 
-                processor.process(&mut data);
-                count += 1;
-                // let arr: &[*mut f32] = unsafe { std::slice::from_raw_parts(, 1) };
-                // let arr: &[f32] = unsafe { std::slice::from_raw_parts(arr[0], block_size) };
-                info!("{:?}; ProcessData: {:?}", count, &mut outputs);
+                    processor.process(&mut data);
+                    count += 1;
+                    // let arr: &[*mut f32] = unsafe { std::slice::from_raw_parts(, 1) };
+                    // let arr: &[f32] = unsafe { std::slice::from_raw_parts(arr[0], block_size) };
+                    info!("{:?}; ProcessData: {:?}", count, &mut outputs);
 
-                processor.set_processing(false);
+                    processor.set_processing(false);
 
-                std::thread::sleep(Duration::from_millis(50));
+                    std::thread::sleep(Duration::from_millis(50));
+                }
             }
         });
     }
