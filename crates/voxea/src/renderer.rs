@@ -1,11 +1,11 @@
-use log::{info, warn};
-use std::borrow::Cow;
-use std::sync::{Arc, OnceLock};
-use winit::window::Window as WinitWindow;
 use anyhow::Result;
 use image::codecs::png::PngDecoder;
 use image::{load_from_memory_with_format, GenericImageView, ImageFormat, ImageReader};
+use log::{info, warn};
+use std::borrow::Cow;
+use std::sync::{Arc, OnceLock};
 use wgpu::util::{DeviceExt, TextureDataOrder};
+use winit::window::Window as WinitWindow;
 
 static mut CONTEXT: OnceLock<RenderContext> = OnceLock::new();
 
@@ -16,15 +16,11 @@ pub fn init() {
 }
 
 pub fn get() -> &'static RenderContext {
-    unsafe {
-        CONTEXT.get().expect("Could not get Render Context!")
-    }
+    unsafe { CONTEXT.get().expect("Could not get Render Context!") }
 }
 
 pub fn get_mut() -> &'static mut RenderContext {
-    unsafe {
-        CONTEXT.get_mut().expect("Could not get Render Context!")
-    }
+    unsafe { CONTEXT.get_mut().expect("Could not get Render Context!") }
 }
 
 pub struct RenderContext {
@@ -35,7 +31,7 @@ pub struct RenderContext {
     pub(crate) shader: wgpu::ShaderModule,
     pub(crate) renderer: egui_wgpu::Renderer,
 
-    pub(crate) textures: Vec<(wgpu::Texture, wgpu::TextureView, egui::TextureId)>
+    pub(crate) textures: Vec<(wgpu::Texture, wgpu::TextureView, egui::TextureId)>,
 }
 
 impl RenderContext {
@@ -82,7 +78,7 @@ impl RenderContext {
             shader,
             renderer,
 
-            textures: Vec::new()
+            textures: Vec::new(),
         }
     }
 
@@ -103,17 +99,24 @@ impl RenderContext {
             size: wgpu::Extent3d {
                 width: png.width(),
                 height: png.height(),
-                depth_or_array_layers: 1
+                depth_or_array_layers: 1,
             },
             dimension: wgpu::TextureDimension::D2,
             mip_level_count: 1,
             sample_count: 1,
-            view_formats: &[wgpu::TextureFormat::Rgba8UnormSrgb]
+            view_formats: &[wgpu::TextureFormat::Rgba8UnormSrgb],
         };
 
-        let texture = self.device.create_texture_with_data(&self.queue, &texture_desc, TextureDataOrder::LayerMajor, png.as_bytes());
+        let texture = self.device.create_texture_with_data(
+            &self.queue,
+            &texture_desc,
+            TextureDataOrder::LayerMajor,
+            png.as_bytes(),
+        );
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let id = self.renderer.register_native_texture(&self.device, &view, wgpu::FilterMode::Linear);
+        let id =
+            self.renderer
+                .register_native_texture(&self.device, &view, wgpu::FilterMode::Linear);
 
         self.textures.push((texture, view, id));
     }

@@ -9,12 +9,12 @@ mod window;
 
 use crate::app::App;
 use crate::ui::menu;
+use anyhow::Result;
 use log::info;
 use tracing_subscriber::fmt::time::LocalTime;
 use voxea_alloc::perf;
 use voxea_alloc::perf::PerfTrace;
 use winit::event_loop::EventLoop;
-use anyhow::Result;
 use winit::platform::windows::EventLoopBuilderExtWindows;
 
 #[global_allocator]
@@ -33,7 +33,7 @@ fn main() -> Result<()> {
     renderer::init();
 
     let event_loop = EventLoop::builder()
-        .with_dpi_aware(false)
+        .with_dpi_aware(true)
         .build()
         .expect("Could not create event loop!");
 

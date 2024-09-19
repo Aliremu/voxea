@@ -1,4 +1,5 @@
 use crate::app::App;
+use crate::plugin;
 use crate::window::{Render, WindowContext};
 use cpal::traits::DeviceTrait;
 use egui::vec2;
@@ -11,7 +12,6 @@ use winit::event_loop::ActiveEventLoop;
 use winit::platform::windows::{WindowAttributesExtWindows, WindowExtWindows};
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::{Window as WinitWindow, WindowAttributes, WindowId};
-use crate::plugin;
 
 pub fn init(cx: &mut App, event_loop: &ActiveEventLoop, parent: &WinitWindow) {
     let window_handle = parent.window_handle().unwrap().as_raw();

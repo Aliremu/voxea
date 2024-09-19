@@ -1,11 +1,11 @@
-use std::fs;
+use crate::renderer;
 use anyhow::{anyhow, Result};
-use std::sync::OnceLock;
 use log::{info, warn};
+use std::fs;
+use std::sync::OnceLock;
 use wasmtime::component::{Component, Linker, ResourceTable};
 use wasmtime::{Config, Engine, Store};
 use wasmtime_wasi::{WasiCtx, WasiCtxBuilder, WasiView};
-use crate::renderer;
 
 pub struct PluginContext {
     pub(crate) plugins: Vec<Plugin>,
@@ -77,7 +77,7 @@ pub fn init() -> Result<()> {
         engine,
         linker,
         store,
-        signal: vec![32.0, 24.0, 16.0]
+        signal: vec![32.0, 24.0, 16.0],
     };
 
     unsafe {
@@ -105,7 +105,9 @@ pub fn load_plugins() -> Result<()> {
         let component = Component::from_file(&cx.engine, plugin.to_str().unwrap())?;
         let instance = Plugin::instantiate(&mut cx.store, &component, &cx.linker)?;
 
-        let icon = instance.sdk_component_plugin_api().call_icon(&mut cx.store)?;
+        let icon = instance
+            .sdk_component_plugin_api()
+            .call_icon(&mut cx.store)?;
 
         renderer::get_mut().create_texture_from_memory(&icon);
 
@@ -144,9 +146,7 @@ pub fn process_signal() {
 }
 
 pub fn get_plugins() -> usize {
-    unsafe {
-        CONTEXT.get().unwrap().plugins.len()
-    }
+    unsafe { CONTEXT.get().unwrap().plugins.len() }
 }
 
 struct MyState {

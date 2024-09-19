@@ -1,10 +1,10 @@
-use std::fmt::Debug;
 use anyhow::Result;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{
     Device, Devices, FromSample, Host, HostId, InputDevices, OutputDevices, Sample, SizedSample,
 };
 use log::{error, info};
+use std::fmt::Debug;
 use std::fs::File;
 use std::io::BufWriter;
 use std::sync::{Arc, Mutex};
@@ -305,7 +305,7 @@ where
     }
 }
 
-fn decode_wav_file(file: String) -> Result<()>{
+fn decode_wav_file(file: String) -> Result<()> {
     let mut wav = hound::WavReader::open(file)?;
 
     Ok(())

@@ -4774,6 +4774,7 @@ dependencies = [
 name = "voxea_macro"
 version = "0.1.0"
 dependencies = [
+ "log",
  "proc-macro2",
  "quote",
  "syn 2.0.77",
@@ -4790,14 +4791,13 @@ dependencies = [
 name = "voxea_vst"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "libc",
  "libloading 0.8.5",
  "log",
  "voxea_macro",
  "winapi",
  "windows-core 0.58.0",
- "windows-implement",
- "windows-interface",
  "windows-sys 0.59.0",
 ]
 

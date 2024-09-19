@@ -29,12 +29,14 @@ pub trait GUnknown_Impl: GInterface {
     fn query_interface(&mut self)
     where
         <Self as GInterface>::VTable: 'static,
-    {}
+    {
+    }
 
     fn add_ref(&mut self)
     where
         <Self as GInterface>::VTable: 'static,
-    {}
+    {
+    }
 }
 
 impl<T: GInterface> GUnknown_Impl for T {
@@ -43,7 +45,8 @@ impl<T: GInterface> GUnknown_Impl for T {
         <Self as GInterface>::VTable: 'static,
     {
         unsafe {
-            std::mem::transmute::<&'static Self::VTable, &GUnknown_Vtbl>(self.vtable()).query_interface;
+            std::mem::transmute::<&'static Self::VTable, &GUnknown_Vtbl>(self.vtable())
+                .query_interface;
         }
     }
 
@@ -81,7 +84,8 @@ pub trait GComponent_Impl: GInterface + GUnknown_Impl {
     fn set_component(&mut self)
     where
         <Self as GInterface>::VTable: 'static,
-    {}
+    {
+    }
 }
 
 impl Marker<GComponent> for GComponent {}
@@ -92,15 +96,11 @@ impl<T: GInterface + GUnknown_Impl + Marker<GComponent>> GComponent_Impl for T {
         <Self as GInterface>::VTable: 'static,
     {
         unsafe {
-            std::mem::transmute::<&'static Self::VTable, &GComponent_Vtbl>(self.vtable()).set_component;
+            std::mem::transmute::<&'static Self::VTable, &GComponent_Vtbl>(self.vtable())
+                .set_component;
         }
     }
 }
-
-
-
-
-
 
 pub struct GController_Vtbl {
     pub base: GUnknown_Vtbl,
@@ -136,12 +136,11 @@ impl<T: GInterface + Marker<GController>> GController_Impl for T {
         <Self as GInterface>::VTable: 'static,
     {
         unsafe {
-            std::mem::transmute::<&'static Self::VTable, &GController_Vtbl>(self.vtable()).set_controller;
+            std::mem::transmute::<&'static Self::VTable, &GController_Vtbl>(self.vtable())
+                .set_controller;
         }
     }
 }
-
-
 
 pub struct GComponentProcessor_Vtbl {
     pub base: GComponent_Vtbl,
@@ -174,17 +173,19 @@ pub trait Marker<T> {}
 impl Marker<GComponentProcessor> for GComponentProcessor {}
 impl Marker<GComponent> for GComponentProcessor {}
 
-impl<T: GInterface + Marker<GComponent> + Marker<GComponentProcessor>> GComponentProcessor_Impl for T {
+impl<T: GInterface + Marker<GComponent> + Marker<GComponentProcessor>> GComponentProcessor_Impl
+    for T
+{
     fn process(&mut self) -> ()
     where
         <Self as GInterface>::VTable: 'static,
     {
         unsafe {
-            std::mem::transmute::<&'static Self::VTable, &GComponentProcessor_Vtbl>(self.vtable()).process;
+            std::mem::transmute::<&'static Self::VTable, &GComponentProcessor_Vtbl>(self.vtable())
+                .process;
         }
     }
 }
-
 
 pub struct HostComponentProcessor {
     vtable: &'static GComponentProcessor_Vtbl,
@@ -222,9 +223,6 @@ pub fn test(processor: &mut GComponentProcessor, controller: &mut GController) {
     processor.add_ref();
     processor.process();
 
-
-
     controller.set_controller();
     // processor.set_component();
 }
-

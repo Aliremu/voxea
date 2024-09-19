@@ -5,18 +5,18 @@ extern crate quote;
 extern crate proc_macro2;
 
 use proc_macro::TokenStream;
-use std::ffi::c_char;
 use proc_macro2::{Span, TokenStream as TokenStream2};
+use std::ffi::c_char;
 use syn::parse::{Parse, ParseBuffer, ParseStream};
-use syn::{parse_macro_input, Token, Ident, TraitItemFn, Visibility, FnArg, Pat};
 use syn::punctuated::Punctuated;
+use syn::{parse_macro_input, Attribute, FnArg, Ident, Meta, Pat, Token, TraitItemFn, Visibility};
 
 struct Interface {
     vis: Visibility,
     ident: Ident,
     colon_token: Option<Token![:]>,
     parent: Option<Ident>,
-    methods: Vec<TraitItemFn>
+    methods: Vec<TraitItemFn>,
 }
 
 impl Parse for Interface {
@@ -45,7 +45,7 @@ impl Parse for Interface {
             ident,
             colon_token,
             parent,
-            methods
+            methods,
         })
     }
 }
@@ -74,14 +74,16 @@ impl Interface {
         let vtable_name = quote::format_ident!("{}_Vtbl", ident);
         let impl_name = quote::format_ident!("{}_Impl", ident);
 
-        let impl_parent = &self.parent.clone().map_or(quote!{}, |p| {
+        let host_impl_name = quote::format_ident!("{}_HostImpl", ident);
+
+        let impl_parent = &self.parent.clone().map_or(quote! {}, |p| {
             let impl_name = quote::format_ident!("{}_Impl", p);
             quote! {
                 impl Marker<#p> for #ident {}
             }
         });
 
-        let parent_supertrait = &self.parent.clone().map_or(quote!{}, |p| {
+        let parent_supertrait = &self.parent.clone().map_or(quote! {}, |p| {
             if quote! {#p}.to_string() == "FUnknown" {
                 quote! {
                     + FUnknown_Impl
@@ -94,46 +96,58 @@ impl Interface {
             }
         });
 
-        let methods = self.methods
+        let methods = self
+            .methods
             .iter()
+            .filter(|method| method.default.is_none())
             .map(|method| {
                 let method_ident = &method.sig.ident;
-                let method_impl_ident = quote::format_ident!("{}_impl", &method.sig.ident);
-                let args = &method.sig.inputs
+                let args = &method
+                    .sig
+                    .inputs
                     .iter()
                     .filter(|arg| matches!(arg, FnArg::Typed(..)))
                     .cloned()
                     .collect::<Punctuated<FnArg, Token![,]>>();
 
-                let arg_inputs = args.iter().map(|arg| {
-                    match arg {
-                        FnArg::Typed(pat) => {
-                            *(pat.pat).clone()
-                        }
+                let arg_inputs = args
+                    .iter()
+                    .map(|arg| match arg {
+                        FnArg::Typed(pat) => *(pat.pat).clone(),
 
                         _ => {
                             panic!("")
                         }
-                    }
-                }).collect::<Punctuated<Pat, Token![,]>>();
+                    })
+                    .collect::<Punctuated<Pat, Token![,]>>();
 
                 let output = &method.sig.output;
 
                 quote! {
                     #[inline]
-                    unsafe fn #method_impl_ident(&mut self, #args) #output {
-                        ((*(self.vtable)).#method_ident)(self, #arg_inputs)
-                    }
+                    unsafe fn #method_ident(&mut self, #args) #output;
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let method_names = self
+            .methods
+            .iter()
+            .filter(|method| method.default.is_none())
+            .map(|method| {
+                let method_ident = &method.sig.ident;
+                quote! {
+                    <Self as #host_impl_name>::#method_ident as *const ()
                 }
             })
             .collect::<Vec<_>>();
 
         let trait_methods = self.methods
             .iter()
+            .filter(|method| !matches!(&method.attrs.get(0), Some(attr) if attr.path().is_ident("private")))
             .map(|method| {
                 let method_ident = &method.sig.ident;
                 let method_generics = &method.sig.generics;
-                let method_impl_ident = quote::format_ident!("{}_impl", &method.sig.ident);
                 let args = &method.sig.inputs
                     .iter()
                     .filter(|arg| matches!(arg, FnArg::Typed(..)))
@@ -192,14 +206,23 @@ impl Interface {
                 #(#trait_methods)*
             }
 
+            pub trait #host_impl_name {
+                #(#methods)*
+            }
+
             impl Marker<#ident> for #ident {}
+            impl DefaultImplementation<FUnknown> for #ident {}
             #impl_parent
+
+            unsafe impl Send for #ident {}
+            unsafe impl Sync for #ident {}
 
             impl<T: Interface + Marker<#ident> #parent_supertrait> #impl_name for T {}
 
             impl Interface for #ident {
                 type VTable = #vtable_name;
                 const iid: FUID = [#(#uid),*];
+                // const method_names: &'static [*const ()] = &[#(#method_names),*];
 
                 fn vtable(&self) -> &'static Self::VTable {
                     self.vtable
@@ -211,12 +234,15 @@ impl Interface {
     fn gen_vtable(&self, vtable_name: &Ident) -> TokenStream2 {
         let name = &self.ident;
 
-        let methods = self.methods
+        let methods = self
+            .methods
             .iter()
             .filter(|method| method.default.is_none())
             .map(|method| {
                 let ident = &method.sig.ident;
-                let args = &method.sig.inputs
+                let args = &method
+                    .sig
+                    .inputs
                     .iter()
                     .filter(|arg| matches!(arg, FnArg::Typed(..)))
                     .cloned()
@@ -250,25 +276,22 @@ impl Interface {
 
 fn inline_uid(l1: u32, l2: u32, l3: u32, l4: u32) -> [c_char; 16] {
     [
-        ((l1 & 0x000000FF)) as c_char,
+        (l1 & 0x000000FF) as c_char,
         ((l1 & 0x0000FF00) >> 8) as c_char,
         ((l1 & 0x00FF0000) >> 16) as c_char,
         ((l1 & 0xFF000000) >> 24) as c_char,
-
         ((l2 & 0x00FF0000) >> 16) as c_char,
         ((l2 & 0xFF000000) >> 24) as c_char,
-        ((l2 & 0x000000FF)) as c_char,
+        (l2 & 0x000000FF) as c_char,
         ((l2 & 0x0000FF00) >> 8) as c_char,
-
         ((l3 & 0xFF000000) >> 24) as c_char,
         ((l3 & 0x00FF0000) >> 16) as c_char,
         ((l3 & 0x0000FF00) >> 8) as c_char,
-        ((l3 & 0x000000FF)) as c_char,
-
+        (l3 & 0x000000FF) as c_char,
         ((l4 & 0xFF000000) >> 24) as c_char,
         ((l4 & 0x00FF0000) >> 16) as c_char,
         ((l4 & 0x0000FF00) >> 8) as c_char,
-        ((l4 & 0x000000FF)) as c_char,
+        (l4 & 0x000000FF) as c_char,
     ]
 
     // [
@@ -307,18 +330,52 @@ pub fn interface(args: TokenStream, input: TokenStream) -> TokenStream {
 
     let uid = inline_uid(l1, l2, l3, l4);
 
-    // for i in uid {
-    //     println!("attr: \"{i}\"");
-    // }
-    // println!("item: \"{input}\"");
-
-
     let tokens = match interface.gen_tokens(uid) {
         Ok(t) => t,
         Err(e) => return e.to_compile_error().into(),
     };
 
-    println!("{}", tokens);
+    // println!("{}", tokens);
 
     tokens.into()
+}
+
+#[proc_macro_attribute]
+pub fn implement(attr: TokenStream, item: TokenStream) -> TokenStream {
+    // Parse the attribute into a list of interfaces (traits) and the struct
+    let interfaces = parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
+    let input = parse_macro_input!(item as syn::ItemStruct);
+
+    // Struct name
+    let struct_name = &input.ident;
+
+    // Collect vtable fields for each interface
+    let mut vtable_fields = vec![];
+
+    for interface in interfaces.iter() {
+        if let Meta::Path(path) = interface {
+            let trait_name = &path.segments.last().unwrap().ident;
+            let vtable_field = format_ident!("{}_vtable", trait_name.to_string().to_lowercase());
+
+            // Add a vtable field for each trait
+            vtable_fields.push(quote! {
+                pub #vtable_field: *const #trait_name
+            });
+        }
+    }
+
+    // Generate the final struct with vtable pointers
+    let expanded = quote! {
+        pub struct #struct_name {
+            #(#vtable_fields),*
+        }
+
+        impl #struct_name {
+            // Here you can add helper methods for setting up the vtable or other functionality
+        }
+    };
+
+    println!("SKDOSSDOKSODKOSD: {:?}", expanded);
+
+    TokenStream::from(expanded)
 }

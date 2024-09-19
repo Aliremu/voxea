@@ -1,8 +1,8 @@
 use crate::ui::{plugview, settings};
 use crate::window::{Render, WindowContext};
 use crate::{plugin, renderer, App};
-use egui::{pos2, Color32};
 use egui::load::SizedTexture;
+use egui::{pos2, Color32};
 use log::info;
 use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, WindowEvent};
@@ -17,29 +17,32 @@ pub fn init(cx: &mut App, event_loop: &ActiveEventLoop) {
         .with_title("Voxea 0.1")
         .with_inner_size(PhysicalSize::new(1600, 900));
 
-    let window = cx.open_window(
-        event_loop,
-        Some(window_attributes),
-        Some(Box::new(Menu::default())),
-    )
-    .expect("Failed to open menu");
+    let window = cx
+        .open_window(
+            event_loop,
+            Some(window_attributes),
+            Some(Box::new(Menu::default())),
+        )
+        .expect("Failed to open menu");
 }
 
 #[derive(Default)]
 pub struct Menu {}
 
 impl Render for Menu {
-    fn window_event(&mut self, cx: &mut WindowContext, event_loop: &ActiveEventLoop, event: &WindowEvent) {
+    fn window_event(
+        &mut self,
+        cx: &mut WindowContext,
+        event_loop: &ActiveEventLoop,
+        event: &WindowEvent,
+    ) {
         match event {
             WindowEvent::KeyboardInput {
                 event,
                 is_synthetic,
                 ..
             } => {
-                if !is_synthetic
-                    && !event.repeat
-                    && event.state == ElementState::Pressed
-                {
+                if !is_synthetic && !event.repeat && event.state == ElementState::Pressed {
                     if event.physical_key == KeyCode::KeyJ {
                         plugview::init(cx.app, event_loop, 1);
                     }
@@ -103,13 +106,13 @@ impl Render for Menu {
                 let rend = renderer::get();
 
                 if rend.textures.len() > 0 {
-                    let img = SizedTexture::new(rend.textures.get(0).unwrap().2, ui.available_size());
+                    let img =
+                        SizedTexture::new(rend.textures.get(0).unwrap().2, ui.available_size());
 
                     // info!("{:?}", rend.textures.get(0).unwrap());
 
                     ui.add(egui::Image::new(img));
                     // ui.painter().image(rend.textures.get(0).unwrap().2, rect, uv, Color32::from_rgba_premultiplied(255, 255, 255, 1));
-
                 }
             });
         });
