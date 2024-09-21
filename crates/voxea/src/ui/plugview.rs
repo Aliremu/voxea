@@ -5,18 +5,16 @@ use cpal::traits::{DeviceTrait, StreamTrait};
 use cpal::{FromSample, Sample};
 use log::{info, warn};
 use rodio::buffer::SamplesBuffer;
-use voxea_vst::gui::plug_view::PlatformType;
-use voxea_vst::vst::audio_processor::{AudioBusBuffers, HostParameterChanges, ProcessData, ProcessMode, SymbolicSampleSize};
+use voxea_vst::gui::plug_view::{PlatformType, ViewRect};
+use voxea_vst::vst::audio_processor::{AudioBusBuffers, ProcessData, ProcessMode, SymbolicSampleSize};
 use core::{error, panic};
 use std::ffi::c_void;
 use std::sync::{mpsc, Arc};
 use std::time::{Duration, Instant};
 use voxea_vst::base::funknown::{IAudioProcessor_Impl, IPlugView_Impl};
-// use voxea_vst::VSTHostContext;
 use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
-use winit::platform::windows::HWND;
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::WindowAttributes;
 
@@ -25,15 +23,22 @@ pub fn init(cx: &mut App, event_loop: &ActiveEventLoop, plug: u32) {
         .with_title("Plugin")
         .with_inner_size(PhysicalSize::new(1200, 800));
 
-    let vst = VSTHostContext::new("C:/Coding/RustRover/voxea/vst3/Archetype Nolly.vst3").unwrap();
+    let path = match plug {
+        1 => "C:/Coding/RustRover/voxea/vst3/Archetype Nolly.vst3",
+        2 => "C:/Coding/RustRover/voxea/vst3/LABS.vst3",
+        3 => "C:/Coding/RustRover/voxea/vst3/ZamDelay.vst3",
+
+        _ => unimplemented!(),
+    };
+    let vst = VSTHostContext::new(path).unwrap();
     
     let plugin = PlugView { 
         vst: Arc::new(vst), 
         tx: None 
     };
 
-    let window = cx
-        .open_window(event_loop, Some(window_attributes), Some(Box::new(plugin)))
+    let _ = cx
+        .open_window(event_loop, Some(window_attributes), Some(Box::new(plugin)), false)
         .expect("Failed to open plugin view");
 }
 
@@ -44,14 +49,6 @@ pub enum PluginCommand {
 pub struct PlugView {
     vst: Arc<VSTHostContext>,
     tx: Option<mpsc::Sender<PluginCommand>>
-}
-
-#[repr(C)]
-struct Rect {
-    left: i32,
-    top: i32,
-    right: i32,
-    bottom: i32,
 }
 
 impl Render for PlugView {
@@ -189,16 +186,11 @@ impl Render for PlugView {
             }
 
             WindowEvent::Resized(size) => {
-                let rect = Box::new(Rect {
-                    left: 0,
-                    top: 0,
-                    right: size.width as i32,
-                    bottom: size.height as i32,
-                });
-
                 unsafe {
-                    // let view = (*(self.vst)).view;
-
+                    let mut view = self.vst.view.unwrap();
+                    let mut rect = ViewRect::default();
+                    view.check_size_constraint(&mut rect);
+                    warn!("SIZE CONSTRAINTS: {:?}", rect);
                     // (*(view)).on_size(Box::into_raw(rect) as *const c_void);
                 }
             }

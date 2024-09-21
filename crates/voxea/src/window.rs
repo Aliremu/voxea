@@ -2,7 +2,7 @@ use crate::ui::menu;
 use crate::{renderer, App};
 use anyhow::Result;
 use egui::ViewportBuilder;
-use egui_winit::{apply_viewport_builder_to_window, create_winit_window_attributes};
+use egui_winit::{apply_viewport_builder_to_window, create_winit_window_attributes, EventResponse};
 use log::{info, warn};
 use std::sync::Arc;
 use winit::event::{ElementState, WindowEvent};
@@ -30,11 +30,7 @@ pub trait Render: 'static {
     fn render(&mut self, cx: &mut WindowContext, event_loop: &ActiveEventLoop);
 }
 
-/// A wrapper around the winit window
-pub struct Window {
-    pub(crate) window: Arc<WinitWindow>,
-    pub(crate) view: Option<Box<dyn Render + 'static>>,
-
+pub struct Backend {
     pub(crate) surface: wgpu::Surface<'static>,
     pub(crate) config: wgpu::SurfaceConfiguration,
     pub(crate) render_pipeline: wgpu::RenderPipeline,
@@ -44,6 +40,13 @@ pub struct Window {
 
     pub(crate) ui_cmds: Vec<Box<dyn Fn(&egui::Context) + 'static>>,
     pub(crate) egui_state: egui_winit::State,
+}
+
+/// A wrapper around the winit window
+pub struct Window {
+    pub(crate) window: Arc<WinitWindow>,
+    pub(crate) view: Option<Box<dyn Render + 'static>>,
+    pub(crate) backend: Option<Backend>,
 
     pub(crate) running: bool,
 
@@ -58,7 +61,21 @@ impl Window {
         event_loop: &ActiveEventLoop,
         window_attributes: Option<WindowAttributes>,
         view: Option<Box<dyn Render + 'static>>,
+        backend: bool
     ) -> Result<Self> {
+        if !backend {
+            let window = Arc::new(event_loop.create_window(window_attributes
+                    .map_or(WindowAttributes::default(), |w| w))?);
+            
+            return Ok(Self {
+                window,
+                view,
+                backend: None,
+                running: true,
+                init: false,
+            });
+        }
+
         let render_context = renderer::get_mut();
 
         let egui_ctx = egui::Context::default();
@@ -179,10 +196,7 @@ impl Window {
             wgpu::FilterMode::Linear,
         );
 
-        Ok(Self {
-            window,
-            view,
-
+        let backend = Backend {
             surface,
             config,
             render_pipeline,
@@ -192,6 +206,13 @@ impl Window {
 
             ui_cmds: Vec::new(),
             egui_state,
+        };
+
+        Ok(Self {
+            window,
+            view,
+            
+            backend: Some(backend),
 
             running: true,
             init: false,
@@ -205,7 +226,9 @@ impl Window {
         event_loop: &ActiveEventLoop,
         event: &WindowEvent,
     ) -> egui_winit::EventResponse {
-        let response = self.egui_state.on_window_event(&self.window, event);
+        let repaint = self.backend.as_mut().map_or(true, |backend| {
+            backend.egui_state.on_window_event(&self.window, event).repaint
+        });
 
         if let Some(mut view) = self.view.take() {
             let mut cx = WindowContext {
@@ -248,7 +271,7 @@ impl Window {
 
             WindowEvent::RedrawRequested => {
                 // Redraw the UI if egui deems it necessary, eg. state has been updated
-                if response.repaint {
+                if repaint {
                     if let Some(mut view) = self.view.take() {
                         let mut cx = WindowContext {
                             app: cx,
@@ -264,38 +287,39 @@ impl Window {
             _ => {}
         }
 
-        response
+        EventResponse::default()
     }
 
     pub fn resize(&mut self, new_size: &PhysicalSize<u32>) {
+        let Some(backend) = self.backend.as_mut() else {
+            return;
+        };
+
         if new_size.width > 0 && new_size.height > 0 {
             let cx = renderer::get();
-            self.config.width = new_size.width;
-            self.config.height = new_size.height;
-            self.surface.configure(&cx.device, &self.config);
+            backend.config.width = new_size.width;
+            backend.config.height = new_size.height;
+            backend.surface.configure(&cx.device, &backend.config);
         }
-    }
-
-    pub fn ui<F>(&mut self, f: F)
-    where
-        F: Fn(&egui::Context) + 'static,
-    {
-        self.ui_cmds.push(Box::new(f));
     }
 
     pub fn ui2<F>(&mut self, mut f: F)
     where
         F: FnMut(&egui::Context),
     {
+        let Some(backend) = self.backend.as_mut() else {
+            return;
+        };
+
         let render_context = renderer::get_mut();
 
-        let input = self.egui_state.take_egui_input(&self.window);
-        let cx = self.egui_state.egui_ctx();
-        let full_output = self.egui_state.egui_ctx().run(input, |cx| {
+        let input = backend.egui_state.take_egui_input(&self.window);
+        let cx = backend.egui_state.egui_ctx();
+        let full_output = backend.egui_state.egui_ctx().run(input, |cx| {
             f(cx);
         });
 
-        self.ui_cmds.clear();
+        backend.ui_cmds.clear();
 
         let clipped_primitives =
             cx.tessellate(full_output.shapes.clone(), full_output.pixels_per_point);
@@ -310,11 +334,11 @@ impl Window {
         }
 
         let desc = egui_wgpu::ScreenDescriptor {
-            size_in_pixels: [self.config.width, self.config.height],
+            size_in_pixels: [backend.config.width, backend.config.height],
             pixels_per_point: cx.pixels_per_point(),
         };
 
-        let Ok(frame) = self.surface.get_current_texture() else {
+        let Ok(frame) = backend.surface.get_current_texture() else {
             // warn!("Failed to acquire next swap chain texture");
             return;
         };
@@ -364,119 +388,6 @@ impl Window {
         frame.present();
     }
 
-    pub fn draw_triangle(&mut self) {
-        let render_context = renderer::get_mut();
-        let fbo_view = &self.fbo_view;
-
-        let mut encoder = render_context
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-
-        // Renders egui interface on top of framebuffer
-        {
-            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: fbo_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-
-            rpass.set_pipeline(&self.render_pipeline);
-            rpass.draw(0..3, 0..1);
-        }
-
-        render_context.queue.submit(Some(encoder.finish()));
-    }
-
-    pub fn render(&mut self, window: &WinitWindow) {
-        let render_context = renderer::get_mut();
-        let input = self.egui_state.take_egui_input(&window);
-        let cx = self.egui_state.egui_ctx();
-        let full_output = self.egui_state.egui_ctx().run(input, |cx| {
-            for f in &self.ui_cmds {
-                f(cx);
-            }
-        });
-
-        self.ui_cmds.clear();
-
-        let clipped_primitives =
-            cx.tessellate(full_output.shapes.clone(), full_output.pixels_per_point);
-
-        for (id, image_delta) in &full_output.textures_delta.set {
-            render_context.renderer.update_texture(
-                &render_context.device,
-                &render_context.queue,
-                *id,
-                image_delta,
-            );
-        }
-
-        let desc = egui_wgpu::ScreenDescriptor {
-            size_in_pixels: [self.config.width, self.config.height],
-            pixels_per_point: cx.pixels_per_point(),
-        };
-
-        let Ok(frame) = self.surface.get_current_texture() else {
-            warn!("Failed to acquire next swap chain texture");
-            return;
-        };
-
-        let view = frame
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = render_context
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-
-        let _command_buffers = render_context.renderer.update_buffers(
-            &render_context.device,
-            &render_context.queue,
-            &mut encoder,
-            &clipped_primitives,
-            &desc,
-        );
-
-        // Renders egui interface on top of framebuffer
-        {
-            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-
-            rpass.set_pipeline(&self.render_pipeline);
-            rpass.draw(0..3, 0..1);
-
-            render_context
-                .renderer
-                .render(&mut rpass, &clipped_primitives, &desc);
-        }
-
-        for id in &full_output.textures_delta.free {
-            render_context.renderer.free_texture(id);
-        }
-
-        render_context.queue.submit(Some(encoder.finish()));
-        frame.present();
-    }
 
     #[inline]
     pub fn request_redraw(&self) {

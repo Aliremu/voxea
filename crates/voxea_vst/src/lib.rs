@@ -23,7 +23,7 @@ use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 use vst::audio_processor::speaker_arr::SpeakerArrangement;
 use vst::audio_processor::{
-    AudioBusBuffers, BusDirection, BusInfo, HostParameterChanges, IParameterChanges, IoMode,
+    AudioBusBuffers, BusDirection, BusInfo, IParameterChanges, IoMode,
     MediaType, ProcessData, ProcessMode, ProcessSetup, SymbolicSampleSize,
 };
 
@@ -920,35 +920,35 @@ impl Drop for Module {
 //    }
 //}
 
-//fn uid_to_ascii(uid: [c_char; 16]) -> String {
-//    // Step 1: Convert [u8; 16] to a hex string (32 characters long)
-//    let hex_string = uid
-//        .iter()
-//        .map(|byte| format!("{:02X}", byte)) // Format each byte as 2 hex digits
-//        .collect::<String>();
+pub fn uid_to_ascii(uid: [c_char; 16]) -> String {
+    // Step 1: Convert [u8; 16] to a hex string (32 characters long)
+    let hex_string = uid
+        .iter()
+        .map(|byte| format!("{:02X}", byte)) // Format each byte as 2 hex digits
+        .collect::<String>();
 
-//    let formatted_uid = format!(
-//        "{}{}{}{}{}{}{}{}{}",
-//        &hex_string[0..8],
-//        "-",
-//        &hex_string[8..12],
-//        "-",
-//        &hex_string[12..16],
-//        "-",
-//        &hex_string[16..20],
-//        "-",
-//        &hex_string[20..32]
-//    );
+    let formatted_uid = format!(
+        "{}{}{}{}{}{}{}{}{}",
+        &hex_string[0..8],
+        "-",
+        &hex_string[8..12],
+        "-",
+        &hex_string[12..16],
+        "-",
+        &hex_string[16..20],
+        "-",
+        &hex_string[20..32]
+    );
 
-//    formatted_uid
+    formatted_uid
 
-//    // // Step 2: Convert the hex string into [u8; 32] of ASCII values
-//    // let mut ascii_array = [0u8; 37];
-//    // for (i, c) in formatted_uid.chars().enumerate() {
-//    //     ascii_array[i] = c as u8;  // Convert each char to its ASCII value
-//    // }
-//    //
-//    // ascii_array[36] = 0;
-//    //
-//    // ascii_array
-//}
+    // // Step 2: Convert the hex string into [u8; 32] of ASCII values
+    // let mut ascii_array = [0u8; 37];
+    // for (i, c) in formatted_uid.chars().enumerate() {
+    //     ascii_array[i] = c as u8;  // Convert each char to its ASCII value
+    // }
+    //
+    // ascii_array[36] = 0;
+    //
+    // ascii_array
+}

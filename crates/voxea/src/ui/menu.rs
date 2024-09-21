@@ -20,6 +20,7 @@ pub fn init(cx: &mut App, event_loop: &ActiveEventLoop) {
             event_loop,
             Some(window_attributes),
             Some(Box::new(Menu::default())),
+            true
         )
         .expect("Failed to open menu");
 }
@@ -65,8 +66,7 @@ impl Render for Menu {
 
         let app = &mut cx.app;
 
-        window.draw_triangle();
-        let texture_id = window.fbo_id;
+        let texture_id = window.backend.as_ref().unwrap().fbo_id;
 
         let parent = window.window.clone();
 

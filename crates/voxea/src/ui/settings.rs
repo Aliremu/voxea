@@ -79,6 +79,7 @@ pub fn init(cx: &mut App, event_loop: &ActiveEventLoop, parent: &WinitWindow) {
             event_loop,
             Some(window_attributes),
             Some(Box::new(settings)),
+            true
         )
         .unwrap();
 

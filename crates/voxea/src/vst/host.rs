@@ -3,7 +3,7 @@ use std::{ffi::{c_char, c_void, CStr}, sync::Arc};
 use egui::ahash::RandomState;
 use log::{info, warn};
 use rustc_hash::FxHashMap;
-use voxea_vst::{base::funknown::{FUnknown, FUnknown_HostImpl, FUnknown_Impl, IAudioProcessor, IAudioProcessor_Impl, IComponent, IComponent_Impl, IEditController, IEditController_Impl, IPlugView, IPluginBase_Impl, IPluginFactory, IPluginFactory_Impl, Interface, PFactoryInfo, TResult, ViewType, FUID}, vst::{audio_processor::{BusDirection, BusInfo, IParameterChanges_HostImpl, IoMode, MediaType, ProcessMode, ProcessSetup, SymbolicSampleSize}, host_application::{IAttributeList, IAttributeList_HostImpl, IComponentHandler, IComponentHandler2_HostImpl, IComponentHandler_HostImpl, IConnectionPoint, IConnectionPoint_Impl, IHostApplication_HostImpl, IMessage_HostImpl, String128}}, Module, VSTPtr};
+use voxea_vst::{base::funknown::{FUnknown, FUnknown_HostImpl, FUnknown_Impl, IAudioProcessor, IAudioProcessor_Impl, IComponent, IComponent_Impl, IEditController, IEditController_Impl, IPlugView, IPlugView_Impl, IPluginBase_Impl, IPluginFactory, IPluginFactory_Impl, Interface, PFactoryInfo, TResult, ViewType, FUID}, gui::plug_view::{IPlugFrame, IPlugFrame_HostImpl, ViewRect}, uid_to_ascii, vst::{audio_processor::{BusDirection, BusInfo, IParameterChanges_HostImpl, IoMode, MediaType, ProcessMode, ProcessSetup, SymbolicSampleSize}, host_application::{IAttributeList, IAttributeList_HostImpl, IComponentHandler, IComponentHandler2_HostImpl, IComponentHandler_HostImpl, IConnectionPoint, IConnectionPoint_Impl, IHostApplication, IHostApplication_HostImpl, IMessage_HostImpl, String128}}, Module, VSTPtr};
 use anyhow::Result;
 
 #[derive(Default)]
@@ -11,8 +11,12 @@ pub struct VSTHostContext {
     pub module: Option<Module>,
     pub factory: Option<VSTPtr<IPluginFactory>>,
     pub component: Option<VSTPtr<IComponent>>,
+    pub processor: Option<VSTPtr<IAudioProcessor>>,
     pub editor: Option<VSTPtr<IEditController>>,
-    pub view: Option<VSTPtr<IPlugView>>
+    pub view: Option<VSTPtr<IPlugView>>,
+
+    pub component_connection: Option<VSTPtr<IConnectionPoint>>,
+    pub controller_connection: Option<VSTPtr<IConnectionPoint>>,
 }
 
 impl VSTHostContext {
@@ -28,7 +32,7 @@ impl VSTHostContext {
 
             info!("Loaded plugin! {}", factory_info);
 
-            let host = Arc::new(VSTHostApplication::new());
+            let host = Arc::new(HostComponentHandler::new());
 
             for i in 0..factory.count_classes() {
                 let class_info = factory.get_class_info(i)?;
@@ -84,7 +88,6 @@ impl VSTHostContext {
                     }
                 };
 
-
                 let res = edit.initialize(context);
 
                 edit.set_component_handler(context as *mut c_void);
@@ -119,17 +122,22 @@ impl VSTHostContext {
                 warn!("Parameter count: {}", edit.get_parameter_count());
 
                 let view = edit.create_view(ViewType::Editor);
+                (*(view)).set_frame(Box::into_raw(Box::new(HostPlugFrame::new())) as *mut _ as *mut IPlugFrame);
 
                 warn!(
                     "{} {:?} {:?} {:?} {:?}",
                     class_info, comp as *mut _, edit as *mut _, context as *mut _, view
                 );
 
+                ctx.controller_connection = Some(VSTPtr::new(controller_connection));
+                ctx.component_connection = Some(VSTPtr::new(component_connection));
                 ctx.component = Some(VSTPtr::new(comp));
+                ctx.processor = Some(VSTPtr::new(processor));
                 ctx.editor = Some(VSTPtr::new(edit));
                 ctx.view = Some(VSTPtr::new(view));
             }
 
+            ctx.factory = Some(factory);
             ctx.module = Some(module);
 
             Ok(ctx)     
@@ -137,9 +145,25 @@ impl VSTHostContext {
     }
 }
 
+impl Drop for VSTHostContext {
+    fn drop(&mut self) {
+        unsafe {
+            self.controller_connection.take().unwrap().release();
+            self.component_connection.take().unwrap().release();
+            self.view.take().unwrap().release();
+            self.editor.take().unwrap().release();
+            self.processor.take().unwrap().release();
+            self.component.take().unwrap().release();
+            self.factory.take().unwrap().release();
+            
+            drop(self.module.take());
+        }
+    }
+}
+
 #[repr(C)]
 pub struct VSTHostApplication {
-    vtable: &'static [*const (); 13]
+    vtable: &'static [*const (); 5]
 }
 
 impl VSTHostApplication {
@@ -147,11 +171,70 @@ impl VSTHostApplication {
         Self {
             vtable: &[
                 <Self as FUnknown_HostImpl>::query_interface as *const _,
-                <Self as FUnknown_HostImpl>::query_interface as *const _,
-                <Self as FUnknown_HostImpl>::query_interface as *const _,
+                <Self as FUnknown_HostImpl>::add_ref as *const _,
+                <Self as FUnknown_HostImpl>::release as *const _,
                 
                 <Self as IHostApplication_HostImpl>::get_name as *const _,
                 <Self as IHostApplication_HostImpl>::create_instance as *const _,
+            ]
+        }
+    }
+}
+
+impl Interface for VSTHostApplication {
+    type VTable = [*const (); 5];
+
+    const iid: FUID = [0; 16];
+
+    fn vtable(&self) -> &'static Self::VTable {
+        self.vtable
+    }
+}
+
+impl FUnknown_HostImpl for VSTHostApplication {
+    unsafe fn query_interface(&mut self, iid: FUID, obj: *mut *mut c_void) -> TResult {
+        warn!("VSTHostApplication:query_interface: {:?}", uid_to_ascii(iid));
+        if iid == IHostApplication::iid {
+            *obj = self as *mut _ as *mut c_void;
+        } else {
+            let host = Box::new(HostComponentHandler::new());
+            *obj = Box::into_raw(host) as *mut c_void;
+        }
+
+        TResult::ResultOk
+    }
+}
+
+impl IHostApplication_HostImpl for VSTHostApplication {
+    unsafe fn get_name(&mut self, mut name: String128) -> TResult {
+        warn!("get_name");
+        // name[0] = 'V' as u16;
+        // name[1] = 'o' as u16;
+        // name[2] = 'x' as u16;
+        // name[3] = 'e' as u16;
+        // name[4] = 'a' as u16;
+        // name[1] = '\0' as u16;
+        TResult::ResultOk
+    }
+
+    unsafe fn create_instance(&mut self, cid: FUID, iid: FUID, obj: *mut *mut c_void) -> TResult {
+        warn!("create_instance");
+        TResult::ResultOk
+    }
+}
+
+#[repr(C)]
+pub struct HostComponentHandler {
+    vtable: &'static [*const (); 15]
+}
+
+impl HostComponentHandler {
+    pub fn new() -> Self {
+        Self {
+            vtable: &[
+                <Self as FUnknown_HostImpl>::query_interface as *const _,
+                <Self as FUnknown_HostImpl>::add_ref as *const _,
+                <Self as FUnknown_HostImpl>::release as *const _,
                 
                 <Self as IComponentHandler_HostImpl>::begin_edit as *const _,
                 <Self as IComponentHandler_HostImpl>::perform_edit as *const _,
@@ -162,13 +245,18 @@ impl VSTHostApplication {
                 <Self as IComponentHandler2_HostImpl>::request_open_editor as *const _,
                 <Self as IComponentHandler2_HostImpl>::start_group_edit as *const _,
                 <Self as IComponentHandler2_HostImpl>::finish_group_edit as *const _,
+
+                <Self as IComponentHandler2_HostImpl>::finish_group_edit as *const _,
+                <Self as IComponentHandler2_HostImpl>::finish_group_edit as *const _,
+                <Self as IComponentHandler2_HostImpl>::finish_group_edit as *const _,
+                <Self as IComponentHandler2_HostImpl>::finish_group_edit as *const _,
             ]
         }
     }
 }
 
-impl Interface for VSTHostApplication {
-    type VTable = [*const (); 13];
+impl Interface for HostComponentHandler {
+    type VTable = [*const (); 15];
 
     const iid: FUID = [0; 16];
 
@@ -177,59 +265,99 @@ impl Interface for VSTHostApplication {
     }
 }
 
-impl FUnknown_HostImpl for VSTHostApplication {}
+impl FUnknown_HostImpl for HostComponentHandler {
+    unsafe fn query_interface(&mut self, iid: FUID, obj: *mut *mut c_void) -> TResult {
+        warn!("HostComponentHandler:query_interface: {:?}", uid_to_ascii(iid));
 
-impl IHostApplication_HostImpl for VSTHostApplication {
-    unsafe fn get_name(&mut self, name: String128) -> TResult {
-        TResult::ResultOk
-    }
+        if iid == IHostApplication::iid {
+            let host = Box::new(VSTHostApplication::new());
+            *obj = Box::into_raw(host) as *mut c_void;
+        } else if iid == IComponentHandler::iid {
+            *obj = self as *mut _ as *mut c_void;
+        }
 
-    unsafe fn create_instance(&mut self, cid: FUID, iid: FUID, obj: *mut *mut c_void) -> TResult {
-        
         TResult::ResultOk
     }
 }
 
-impl IComponentHandler_HostImpl for VSTHostApplication {
+impl IComponentHandler_HostImpl for HostComponentHandler {
     unsafe fn begin_edit(&mut self,id: *const c_char) -> TResult {
-        
+        warn!("begin_edit");
         TResult::ResultOk
     }
 
     unsafe fn perform_edit(&mut self,id: *const c_char,value:u32) -> TResult {
-        
+        warn!("perform_edit");
         TResult::ResultOk
     }
 
     unsafe fn end_edit(&mut self,id: *const c_char) -> TResult {
-        
+        warn!("end_edit");
         TResult::ResultOk
     }
 
     unsafe fn restart_component(&mut self,flags:i32) -> TResult {
-        
+        warn!("restart_component");
         TResult::ResultOk
     }
 }
 
-impl IComponentHandler2_HostImpl for VSTHostApplication {
+impl IComponentHandler2_HostImpl for HostComponentHandler {
     unsafe fn set_dirty(&mut self,state:bool) -> TResult {
-    
+        warn!("set_dirty");
         TResult::ResultOk
     }
 
     unsafe fn request_open_editor(&mut self,name: *const c_char) -> TResult {
-        
+        warn!("request_open_editor");
         TResult::ResultOk
     }
 
     unsafe fn start_group_edit(&mut self,) -> TResult {
-        
+        warn!("start_group_edit");
         TResult::ResultOk
     }
 
     unsafe fn finish_group_edit(&mut self,) -> TResult {
-                            
+        warn!("finish_group_edit");             
+        TResult::ResultOk
+    }
+}
+
+#[repr(C)]
+pub struct HostPlugFrame {
+    vtable: &'static [*const (); 4]
+}
+
+impl HostPlugFrame {
+    pub fn new() -> Self {
+        Self {
+            vtable: &[
+                <Self as FUnknown_HostImpl>::query_interface as *const _,
+                <Self as FUnknown_HostImpl>::add_ref as *const _,
+                <Self as FUnknown_HostImpl>::release as *const _,
+
+                <Self as IPlugFrame_HostImpl>::resize_view as *const _,
+            ]
+        }
+    }
+}
+
+impl Interface for HostPlugFrame {
+    type VTable = [*const (); 4];
+
+    const iid: FUID = [0; 16];
+
+    fn vtable(&self) -> &'static Self::VTable {
+        self.vtable
+    }
+}
+
+impl FUnknown_HostImpl for HostPlugFrame {}
+
+impl IPlugFrame_HostImpl for HostPlugFrame {
+    unsafe fn resize_view(&mut self, view: *mut IPlugView, new_size: *mut ViewRect) -> TResult {
+        warn!("HostPlugFrame::resize_view: {:?}", *new_size);
         TResult::ResultOk
     }
 }

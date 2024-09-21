@@ -37,10 +37,11 @@ impl App {
         event_loop: &ActiveEventLoop,
         window_attributes: Option<WindowAttributes>,
         view: Option<Box<dyn Render + 'static>>,
+        backend: bool
     ) -> Result<&Option<Window>> {
         perf::begin_perf!("app::open_window");
 
-        let mut window = Window::new(event_loop, window_attributes, view)?;
+        let mut window = Window::new(event_loop, window_attributes, view, backend)?;
 
         if let Some(mut view) = window.view.take() {
             let mut cx = WindowContext {

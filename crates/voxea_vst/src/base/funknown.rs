@@ -8,6 +8,7 @@ use std::fmt::Formatter;
 use std::ops::Not;
 use voxea_macro::interface;
 
+use crate::gui::plug_view::{IPlugFrame, ViewRect};
 use crate::vst::audio_processor::speaker_arr::SpeakerArrangement;
 use crate::vst::audio_processor::{
     BusDirection, BusInfo, IoMode, MediaType, ProcessData, ProcessSetup, RoutingInfo,
@@ -303,10 +304,10 @@ pub trait IPlugView: FUnknown {
     fn on_size(&mut self, new_size: *const c_void) -> TResult;
     fn on_focus(&mut self, state: bool) -> TResult;
 
-    fn set_frame(&mut self, frame: *const c_void) -> TResult;
+    fn set_frame(&mut self, frame: *mut IPlugFrame) -> TResult;
 
     fn can_resize() -> TResult;
-    fn check_size_constraint(&mut self, rect: *const c_void) -> TResult;
+    fn check_size_constraint(&mut self, rect: *mut ViewRect) -> TResult;
 }
 
 #[interface(0x42043F99, 0xB7DA453C, 0xA569E79D, 0x9AAEC33D)]
