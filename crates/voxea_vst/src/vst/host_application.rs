@@ -2,7 +2,6 @@ use crate::base::funknown::{
     DefaultImplementation, FUnknown, FUnknown_HostImpl, FUnknown_Impl, FUnknown_Vtbl,
     IAudioProcessor, IComponent, Interface, Marker, TResult, FUID,
 };
-use crate::{addRef3, queryInterface3, release3};
 use libc::c_char;
 use log::{error, warn};
 use std::collections::HashMap;

@@ -2,6 +2,7 @@
 
 use anyhow::anyhow;
 use libc::c_char;
+use std::error::Error;
 use std::ffi::{c_float, c_void, CStr, CString};
 use std::fmt::Formatter;
 use std::ops::Not;
@@ -131,6 +132,16 @@ pub enum TResult {
     InternalError = 0x80004005,   // E_FAIL
     NotInitialized = 0x8000FFFF,  // E_UNEXPECTED
     OutOfMemory = 0x8007000E,     // E_OUTOFMEMORY
+}
+
+impl std::fmt::Display for TResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl Error for TResult {
+    
 }
 
 #[repr(C)]
@@ -415,7 +426,7 @@ pub trait IEditController: IPluginBase {
 
     fn set_component_handler(&mut self, handler: *mut c_void) -> TResult;
 
-    fn create_view(&mut self, name: *const c_char) -> *mut c_void;
+    fn create_view(&mut self, name: *const c_char) -> *mut IPlugView;
 
     fn set_knob_mode(&mut self, val: bool) -> TResult;
     fn open_help(&mut self, val: bool) -> TResult;

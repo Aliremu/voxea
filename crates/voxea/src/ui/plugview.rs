@@ -5,12 +5,13 @@ use cpal::traits::{DeviceTrait, StreamTrait};
 use cpal::{FromSample, Sample};
 use log::{info, warn};
 use rodio::buffer::SamplesBuffer;
+use voxea_vst::gui::plug_view::PlatformType;
 use voxea_vst::vst::audio_processor::{AudioBusBuffers, HostParameterChanges, ProcessData, ProcessMode, SymbolicSampleSize};
 use core::{error, panic};
 use std::ffi::c_void;
 use std::sync::{mpsc, Arc};
 use std::time::{Duration, Instant};
-use voxea_vst::base::funknown::IAudioProcessor_Impl;
+use voxea_vst::base::funknown::{IAudioProcessor_Impl, IPlugView_Impl};
 // use voxea_vst::VSTHostContext;
 use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
@@ -24,11 +25,7 @@ pub fn init(cx: &mut App, event_loop: &ActiveEventLoop, plug: u32) {
         .with_title("Plugin")
         .with_inner_size(PhysicalSize::new(1200, 800));
 
-    // let vst = voxea_vst::load_vst(plug).expect("Couldn't load VST!");
-    //
-    //
     let vst = VSTHostContext::new("C:/Coding/RustRover/voxea/vst3/Archetype Nolly.vst3").unwrap();
-
     
     let plugin = PlugView { 
         vst: Arc::new(vst), 
@@ -44,7 +41,6 @@ pub enum PluginCommand {
     CloseWindow
 }
 
-#[derive(Default)]
 pub struct PlugView {
     vst: Arc<VSTHostContext>,
     tx: Option<mpsc::Sender<PluginCommand>>
@@ -66,12 +62,14 @@ impl Render for PlugView {
             RawWindowHandle::Win32(handle) => handle.hwnd.get(),
             _ => todo!("Not running on Windows"),
         };
-        
+
+        unsafe {
+            self.vst.view.unwrap().attached(hwnd as *mut c_void, PlatformType::HWND);
+        }
+
         #[cfg(feature = "")]
         {
         self.vst.attach(hwnd as HWND);
-        let view = (*(self.vst)).view;
-        // unsafe { (*view).(2.5); }
         
         let vst = self.vst.clone();
         let (tx, rx) = mpsc::channel();
