@@ -141,9 +141,7 @@ impl std::fmt::Display for TResult {
     }
 }
 
-impl Error for TResult {
-    
-}
+impl Error for TResult {}
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq)]

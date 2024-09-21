@@ -37,7 +37,7 @@ impl App {
         event_loop: &ActiveEventLoop,
         window_attributes: Option<WindowAttributes>,
         view: Option<Box<dyn Render + 'static>>,
-        backend: bool
+        backend: bool,
     ) -> Result<&Option<Window>> {
         perf::begin_perf!("app::open_window");
 

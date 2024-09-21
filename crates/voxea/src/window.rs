@@ -61,12 +61,14 @@ impl Window {
         event_loop: &ActiveEventLoop,
         window_attributes: Option<WindowAttributes>,
         view: Option<Box<dyn Render + 'static>>,
-        backend: bool
+        backend: bool,
     ) -> Result<Self> {
         if !backend {
-            let window = Arc::new(event_loop.create_window(window_attributes
-                    .map_or(WindowAttributes::default(), |w| w))?);
-            
+            let window = Arc::new(
+                event_loop
+                    .create_window(window_attributes.map_or(WindowAttributes::default(), |w| w))?,
+            );
+
             return Ok(Self {
                 window,
                 view,
@@ -211,7 +213,7 @@ impl Window {
         Ok(Self {
             window,
             view,
-            
+
             backend: Some(backend),
 
             running: true,
@@ -227,7 +229,10 @@ impl Window {
         event: &WindowEvent,
     ) -> egui_winit::EventResponse {
         let repaint = self.backend.as_mut().map_or(true, |backend| {
-            backend.egui_state.on_window_event(&self.window, event).repaint
+            backend
+                .egui_state
+                .on_window_event(&self.window, event)
+                .repaint
         });
 
         if let Some(mut view) = self.view.take() {
@@ -387,7 +392,6 @@ impl Window {
         render_context.queue.submit(Some(encoder.finish()));
         frame.present();
     }
-
 
     #[inline]
     pub fn request_redraw(&self) {

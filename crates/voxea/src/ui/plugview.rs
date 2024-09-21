@@ -1,17 +1,19 @@
 use crate::vst::host::VSTHostContext;
 use crate::window::{Render, WindowContext};
 use crate::App;
+use core::{error, panic};
 use cpal::traits::{DeviceTrait, StreamTrait};
 use cpal::{FromSample, Sample};
 use log::{info, warn};
 use rodio::buffer::SamplesBuffer;
-use voxea_vst::gui::plug_view::{PlatformType, ViewRect};
-use voxea_vst::vst::audio_processor::{AudioBusBuffers, ProcessData, ProcessMode, SymbolicSampleSize};
-use core::{error, panic};
 use std::ffi::c_void;
 use std::sync::{mpsc, Arc};
 use std::time::{Duration, Instant};
 use voxea_vst::base::funknown::{IAudioProcessor_Impl, IPlugView_Impl};
+use voxea_vst::gui::plug_view::{PlatformType, ViewRect};
+use voxea_vst::vst::audio_processor::{
+    AudioBusBuffers, ProcessData, ProcessMode, SymbolicSampleSize,
+};
 use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
@@ -31,24 +33,29 @@ pub fn init(cx: &mut App, event_loop: &ActiveEventLoop, plug: u32) {
         _ => unimplemented!(),
     };
     let vst = VSTHostContext::new(path).unwrap();
-    
-    let plugin = PlugView { 
-        vst: Arc::new(vst), 
-        tx: None 
+
+    let plugin = PlugView {
+        vst: Arc::new(vst),
+        tx: None,
     };
 
     let _ = cx
-        .open_window(event_loop, Some(window_attributes), Some(Box::new(plugin)), false)
+        .open_window(
+            event_loop,
+            Some(window_attributes),
+            Some(Box::new(plugin)),
+            false,
+        )
         .expect("Failed to open plugin view");
 }
 
 pub enum PluginCommand {
-    CloseWindow
+    CloseWindow,
 }
 
 pub struct PlugView {
     vst: Arc<VSTHostContext>,
-    tx: Option<mpsc::Sender<PluginCommand>>
+    tx: Option<mpsc::Sender<PluginCommand>>,
 }
 
 impl Render for PlugView {
@@ -61,116 +68,121 @@ impl Render for PlugView {
         };
 
         unsafe {
-            self.vst.view.unwrap().attached(hwnd as *mut c_void, PlatformType::HWND);
+            self.vst
+                .view
+                .unwrap()
+                .attached(hwnd as *mut c_void, PlatformType::HWND);
         }
 
         #[cfg(feature = "")]
         {
-        self.vst.attach(hwnd as HWND);
-        
-        let vst = self.vst.clone();
-        let (tx, rx) = mpsc::channel();
-        
-        self.tx = Some(tx);
+            self.vst.attach(hwnd as HWND);
 
-        std::thread::spawn(move || {
-            unsafe {
-                let mut processor = *(vst.processor);
-                let mut count = 0;
+            let vst = self.vst.clone();
+            let (tx, rx) = mpsc::channel();
 
-                let (stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
-                // let sink = rodio::Sink::try_new(&stream_handle).unwrap();
+            self.tx = Some(tx);
 
-                const block_size: usize = 192;
+            std::thread::spawn(move || {
+                unsafe {
+                    let mut processor = *(vst.processor);
+                    let mut count = 0;
 
-                const SAMPLE_RATE: f32 = 44100.0;
-                const BLOCK_SIZE: usize = 192;
-                const FREQUENCY: f32 = 440.0;
-                let phase_step = 2.0 * std::f32::consts::PI * FREQUENCY / SAMPLE_RATE;
-                let mut phase: f32 = 0.0;
-                let data2 = [0.0f32; block_size];
-                let start = Instant::now();
+                    let (stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
+                    // let sink = rodio::Sink::try_new(&stream_handle).unwrap();
 
-                loop {
-                    match rx.try_recv() {
-                        Ok(msg) => {
-                            panic!();
-                            warn!("Window closed!");
-                        }
+                    const block_size: usize = 192;
 
-                        Err(err) => {
-                            // processor.set_processing(true);
+                    const SAMPLE_RATE: f32 = 44100.0;
+                    const BLOCK_SIZE: usize = 192;
+                    const FREQUENCY: f32 = 440.0;
+                    let phase_step = 2.0 * std::f32::consts::PI * FREQUENCY / SAMPLE_RATE;
+                    let mut phase: f32 = 0.0;
+                    let data2 = [0.0f32; block_size];
+                    let start = Instant::now();
 
-                            let data1: [f32; BLOCK_SIZE] = std::array::from_fn(|_| {
-                                // Generate a sine wave using the tracked phase
-                                let sample = (phase).sin();
-                                phase += phase_step;
-                                
-                                // Keep phase within the 0 to 2π range to avoid overflow
-                                if phase >= 2.0 * std::f32::consts::PI {
-                                    phase -= 2.0 * std::f32::consts::PI;
-                                }
-                                
-                                sample
-                            });
+                    loop {
+                        match rx.try_recv() {
+                            Ok(msg) => {
+                                panic!();
+                                warn!("Window closed!");
+                            }
 
+                            Err(err) => {
+                                // processor.set_processing(true);
 
+                                let data1: [f32; BLOCK_SIZE] = std::array::from_fn(|_| {
+                                    // Generate a sine wave using the tracked phase
+                                    let sample = (phase).sin();
+                                    phase += phase_step;
 
-                            let mut inputs: Vec<Option<&[f32; block_size]>> = vec![Some(&data1); 2];
-                            let mut outputs: Vec<Option<&[f32; block_size]>> = vec![Some(&data2); 2];
+                                    // Keep phase within the 0 to 2π range to avoid overflow
+                                    if phase >= 2.0 * std::f32::consts::PI {
+                                        phase -= 2.0 * std::f32::consts::PI;
+                                    }
 
-                            let mut in_bus = AudioBusBuffers {
-                                num_channels: 1,
-                                silence_flags: 0,
-                                channel_buffers_32: inputs.as_mut_ptr() as *mut _,
-                            };
+                                    sample
+                                });
 
-                            let mut out_bus = AudioBusBuffers {
-                                num_channels: 1,
-                                silence_flags: 0,
-                                channel_buffers_32: outputs.as_mut_ptr() as *mut _,
-                            };
+                                let mut inputs: Vec<Option<&[f32; block_size]>> =
+                                    vec![Some(&data1); 2];
+                                let mut outputs: Vec<Option<&[f32; block_size]>> =
+                                    vec![Some(&data2); 2];
 
-                            let mut out = HostParameterChanges::new();
+                                let mut in_bus = AudioBusBuffers {
+                                    num_channels: 1,
+                                    silence_flags: 0,
+                                    channel_buffers_32: inputs.as_mut_ptr() as *mut _,
+                                };
 
-                            let mut data = ProcessData {
-                                process_mode: ProcessMode::Realtime,
-                                symbolic_sample_size: SymbolicSampleSize::Sample32,
-                                num_samples: 192,
-                                num_inputs: 1,
-                                num_outputs: 1,
-                                inputs: &mut in_bus,
-                                outputs: &mut out_bus,
-                                input_parameter_changes: Box::into_raw(Box::new(HostParameterChanges::new())) as *mut _,
-                                output_parameter_changes: None,
-                                input_events: None,
-                                output_events: None,
-                                process_context: None,
-                            };
+                                let mut out_bus = AudioBusBuffers {
+                                    num_channels: 1,
+                                    silence_flags: 0,
+                                    channel_buffers_32: outputs.as_mut_ptr() as *mut _,
+                                };
 
-                            //let data = Arc::new(ProcessData::prepare(out, &inputs, &outputs));
+                                let mut out = HostParameterChanges::new();
 
-                            // processor.process(&mut data);
-                            count += 1;
-                            // let arr: &[*mut f32] = unsafe { std::slice::from_raw_parts(, 1) };
-                            // let arr: &[f32] = unsafe { std::slice::from_raw_parts(arr[0], block_size) };
-                            // info!("{:?}; ProcessData: {:?}", count, &mut outputs);
+                                let mut data = ProcessData {
+                                    process_mode: ProcessMode::Realtime,
+                                    symbolic_sample_size: SymbolicSampleSize::Sample32,
+                                    num_samples: 192,
+                                    num_inputs: 1,
+                                    num_outputs: 1,
+                                    inputs: &mut in_bus,
+                                    outputs: &mut out_bus,
+                                    input_parameter_changes: Box::into_raw(Box::new(
+                                        HostParameterChanges::new(),
+                                    ))
+                                        as *mut _,
+                                    output_parameter_changes: None,
+                                    input_events: None,
+                                    output_events: None,
+                                    process_context: None,
+                                };
 
-                            // processor.set_processing(false);
-                            let samples = SamplesBuffer::new(1, 44100, data1);
-                            stream_handle.play_raw(samples);
+                                //let data = Arc::new(ProcessData::prepare(out, &inputs, &outputs));
 
-                            //samples.pl
+                                // processor.process(&mut data);
+                                count += 1;
+                                // let arr: &[*mut f32] = unsafe { std::slice::from_raw_parts(, 1) };
+                                // let arr: &[f32] = unsafe { std::slice::from_raw_parts(arr[0], block_size) };
+                                // info!("{:?}; ProcessData: {:?}", count, &mut outputs);
 
-                            //sink.append(samples); 
-                            
-                            //sink.sleep_until_end();
-         
+                                // processor.set_processing(false);
+                                let samples = SamplesBuffer::new(1, 44100, data1);
+                                stream_handle.play_raw(samples);
+
+                                //samples.pl
+
+                                //sink.append(samples);
+
+                                //sink.sleep_until_end();
+                            }
                         }
                     }
                 }
-            }
-        });
+            });
         }
     }
 
@@ -182,7 +194,9 @@ impl Render for PlugView {
     ) {
         match event {
             WindowEvent::CloseRequested => {
-                self.tx.as_ref().inspect(|tx| tx.send(PluginCommand::CloseWindow).unwrap());
+                self.tx
+                    .as_ref()
+                    .inspect(|tx| tx.send(PluginCommand::CloseWindow).unwrap());
             }
 
             WindowEvent::Resized(size) => {

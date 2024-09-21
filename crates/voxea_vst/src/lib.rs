@@ -14,7 +14,6 @@ use anyhow::Result;
 use libc::c_char;
 use libloading::{Library, Symbol};
 use log::{info, warn};
-use vst::host_application::IComponentHandler;
 use std::error::Error;
 use std::ffi::{c_void, CStr, CString};
 use std::marker::PhantomData;
@@ -23,13 +22,14 @@ use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 use vst::audio_processor::speaker_arr::SpeakerArrangement;
 use vst::audio_processor::{
-    AudioBusBuffers, BusDirection, BusInfo, IParameterChanges, IoMode,
-    MediaType, ProcessData, ProcessMode, ProcessSetup, SymbolicSampleSize,
+    AudioBusBuffers, BusDirection, BusInfo, IParameterChanges, IoMode, MediaType, ProcessData,
+    ProcessMode, ProcessSetup, SymbolicSampleSize,
 };
+use vst::host_application::IComponentHandler;
 
 pub mod base;
-pub mod vst;
 pub mod gui;
+pub mod vst;
 
 type InitDllProc = fn() -> bool;
 type ExitDllProc = fn() -> bool;
@@ -38,14 +38,14 @@ type GetPluginFactoryProc = fn() -> *mut IPluginFactory;
 #[derive(Debug, Clone, Copy)]
 pub struct VSTPtr<T> {
     data: *mut T,
-    _marker: PhantomData<T>
+    _marker: PhantomData<T>,
 }
 
 impl<T> VSTPtr<T> {
     pub fn new(ptr: *mut T) -> Self {
         Self {
             data: ptr,
-            _marker: PhantomData
+            _marker: PhantomData,
         }
     }
 }
@@ -54,17 +54,13 @@ impl<T> Deref for VSTPtr<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        unsafe {
-            &*(self.data)
-        }
+        unsafe { &*(self.data) }
     }
 }
 
 impl<T> DerefMut for VSTPtr<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe {
-            &mut *(self.data)
-        }
+        unsafe { &mut *(self.data) }
     }
 }
 
@@ -79,19 +75,18 @@ impl Module {
             let init: Symbol<InitDllProc> = lib.get(b"InitDll").unwrap();
             init.call(());
 
-            Ok(Self {
-                lib: Some(lib)
-            })
+            Ok(Self { lib: Some(lib) })
         }
     }
 
     pub fn get_factory(&mut self) -> Result<VSTPtr<IPluginFactory>> {
         unsafe {
-            let raw_factory: Symbol<GetPluginFactoryProc> = self.lib
+            let raw_factory: Symbol<GetPluginFactoryProc> = self
+                .lib
                 .as_ref()
                 .expect("Library is None!")
                 .get::<GetPluginFactoryProc>(b"GetPluginFactory")?;
-        
+
             Ok(VSTPtr::new(raw_factory.call(())))
         }
     }

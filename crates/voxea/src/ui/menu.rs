@@ -20,7 +20,7 @@ pub fn init(cx: &mut App, event_loop: &ActiveEventLoop) {
             event_loop,
             Some(window_attributes),
             Some(Box::new(Menu::default())),
-            true
+            true,
         )
         .expect("Failed to open menu");
 }

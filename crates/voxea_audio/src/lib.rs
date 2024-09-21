@@ -311,8 +311,8 @@ fn decode_wav_file(file: String) -> Result<()> {
     Ok(())
 }
 
-
-pub fn host_device_setup() -> Result<(cpal::Host, cpal::Device, cpal::SupportedStreamConfig), anyhow::Error> {
+pub fn host_device_setup(
+) -> Result<(cpal::Host, cpal::Device, cpal::SupportedStreamConfig), anyhow::Error> {
     let host = cpal::default_host();
 
     let device = host
@@ -326,6 +326,4 @@ pub fn host_device_setup() -> Result<(cpal::Host, cpal::Device, cpal::SupportedS
     Ok((host, device, config))
 }
 
-pub fn lol() {
-    
-}
+pub fn lol() {}

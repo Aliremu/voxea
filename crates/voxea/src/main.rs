@@ -5,8 +5,8 @@ mod config;
 mod plugin;
 mod renderer;
 mod ui;
-mod window;
 mod vst;
+mod window;
 
 use crate::app::App;
 use crate::ui::menu;

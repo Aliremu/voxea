@@ -27,9 +27,7 @@ pub struct ProcessData {
     pub process_context: Option<*mut c_void>,
 }
 
-impl ProcessData {
-   
-}
+impl ProcessData {}
 
 #[repr(C)]
 #[derive(Debug)]
