@@ -1,20 +1,21 @@
-use crate::ui::settings;
+use crate::vst::host::VSTHostContext;
 use crate::window::{Render, WindowContext};
-use crate::{plugin, renderer, App};
-use egui::load::SizedTexture;
-use egui::{pos2, Color32};
-use log::info;
+use crate::App;
+use cpal::traits::{DeviceTrait, StreamTrait};
+use cpal::{FromSample, Sample};
+use log::{info, warn};
+use rodio::buffer::SamplesBuffer;
 use voxea_vst::vst::audio_processor::{AudioBusBuffers, HostParameterChanges, ProcessData, ProcessMode, SymbolicSampleSize};
+use core::{error, panic};
 use std::ffi::c_void;
-use std::sync::Arc;
-use std::time::Duration;
-use voxea_vst::base::funknown::{IAudioProcessor_Impl, IPlugViewContentScaleSupport_Impl, IPlugView_Impl};
-use voxea_vst::VSTHostContext;
+use std::sync::{mpsc, Arc};
+use std::time::{Duration, Instant};
+use voxea_vst::base::funknown::IAudioProcessor_Impl;
+// use voxea_vst::VSTHostContext;
 use winit::dpi::PhysicalSize;
-use winit::event::{ElementState, WindowEvent};
+use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
-use winit::keyboard::KeyCode;
-use winit::platform::windows::{WindowExtWindows, HWND};
+use winit::platform::windows::HWND;
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::WindowAttributes;
 
@@ -23,28 +24,30 @@ pub fn init(cx: &mut App, event_loop: &ActiveEventLoop, plug: u32) {
         .with_title("Plugin")
         .with_inner_size(PhysicalSize::new(1200, 800));
 
-    let vst = voxea_vst::load_vst(plug).expect("Couldn't load VST!");
-    let plugin = PlugView { vst };
+    // let vst = voxea_vst::load_vst(plug).expect("Couldn't load VST!");
+    //
+    //
+    let vst = VSTHostContext::new("C:/Coding/RustRover/voxea/vst3/Archetype Nolly.vst3").unwrap();
 
-    // let plugin = PlugView::default();
+    
+    let plugin = PlugView { 
+        vst: Arc::new(vst), 
+        tx: None 
+    };
 
     let window = cx
         .open_window(event_loop, Some(window_attributes), Some(Box::new(plugin)))
         .expect("Failed to open plugin view");
+}
 
-    // let window_handle = window.as_ref().unwrap().window.window_handle().unwrap().as_raw();
-    //
-    // let hwnd = match window_handle {
-    //     RawWindowHandle::Win32(handle) => handle.hwnd.get(),
-    //     _ => todo!("Not running on Windows"),
-    // };
-    //
-    // let vst = voxea_vst::load_vst_window(hwnd as HWND, plug);
+pub enum PluginCommand {
+    CloseWindow
 }
 
 #[derive(Default)]
 pub struct PlugView {
     vst: Arc<VSTHostContext>,
+    tx: Option<mpsc::Sender<PluginCommand>>
 }
 
 #[repr(C)]
@@ -63,71 +66,117 @@ impl Render for PlugView {
             RawWindowHandle::Win32(handle) => handle.hwnd.get(),
             _ => todo!("Not running on Windows"),
         };
-
+        
+        #[cfg(feature = "")]
+        {
         self.vst.attach(hwnd as HWND);
-        let mut view = (*(self.vst)).view;
+        let view = (*(self.vst)).view;
         // unsafe { (*view).(2.5); }
         
         let vst = self.vst.clone();
+        let (tx, rx) = mpsc::channel();
+        
+        self.tx = Some(tx);
 
         std::thread::spawn(move || {
             unsafe {
                 let mut processor = *(vst.processor);
                 let mut count = 0;
 
-                const block_size: usize = 128;
+                let (stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
+                // let sink = rodio::Sink::try_new(&stream_handle).unwrap();
+
+                const block_size: usize = 192;
+
+                const SAMPLE_RATE: f32 = 44100.0;
+                const BLOCK_SIZE: usize = 192;
+                const FREQUENCY: f32 = 440.0;
+                let phase_step = 2.0 * std::f32::consts::PI * FREQUENCY / SAMPLE_RATE;
+                let mut phase: f32 = 0.0;
+                let data2 = [0.0f32; block_size];
+                let start = Instant::now();
 
                 loop {
-                    processor.set_processing(true);
+                    match rx.try_recv() {
+                        Ok(msg) => {
+                            panic!();
+                            warn!("Window closed!");
+                        }
 
-                    let mut data1 = [0.25f32; block_size];
-                    let mut data2 = [0.0f32; block_size];
+                        Err(err) => {
+                            // processor.set_processing(true);
 
-                    let mut inputs: Vec<Option<&[f32; block_size]>> = vec![Some(&data1); 1];
-                    let mut outputs: Vec<Option<&[f32; block_size]>> = vec![Some(&data2); 1];
+                            let data1: [f32; BLOCK_SIZE] = std::array::from_fn(|_| {
+                                // Generate a sine wave using the tracked phase
+                                let sample = (phase).sin();
+                                phase += phase_step;
+                                
+                                // Keep phase within the 0 to 2π range to avoid overflow
+                                if phase >= 2.0 * std::f32::consts::PI {
+                                    phase -= 2.0 * std::f32::consts::PI;
+                                }
+                                
+                                sample
+                            });
 
-                    let mut in_bus = AudioBusBuffers {
-                        num_channels: 1,
-                        silence_flags: 0,
-                        channel_buffers_32: inputs.as_mut_ptr() as *mut _,
-                    };
 
-                    let mut out_bus = AudioBusBuffers {
-                        num_channels: 1,
-                        silence_flags: 0,
-                        channel_buffers_32: outputs.as_mut_ptr() as *mut _,
-                    };
 
-                    // let mut out: *mut c_void = std::ptr::null_mut();
-                    let mut data = ProcessData {
-                        process_mode: ProcessMode::Realtime,
-                        symbolic_sample_size: SymbolicSampleSize::Sample32,
-                        num_samples: 128,
-                        num_inputs: 1,
-                        num_outputs: 1,
-                        inputs: &mut in_bus,
-                        outputs: &mut out_bus,
-                        input_parameter_changes: Box::into_raw(HostParameterChanges::new()) as *mut _,
-                        output_parameter_changes: None,
-                        input_events: None,
-                        output_events: None,
-                        process_context: None,
-                    };
+                            let mut inputs: Vec<Option<&[f32; block_size]>> = vec![Some(&data1); 2];
+                            let mut outputs: Vec<Option<&[f32; block_size]>> = vec![Some(&data2); 2];
 
-                    //let data = Arc::new(ProcessData::prepare(out, &inputs, &outputs));
+                            let mut in_bus = AudioBusBuffers {
+                                num_channels: 1,
+                                silence_flags: 0,
+                                channel_buffers_32: inputs.as_mut_ptr() as *mut _,
+                            };
 
-                    processor.process(&mut data);
-                    count += 1;
-                    // let arr: &[*mut f32] = unsafe { std::slice::from_raw_parts(, 1) };
-                    // let arr: &[f32] = unsafe { std::slice::from_raw_parts(arr[0], block_size) };
-                    info!("{:?}; ProcessData: {:?}", count, &mut outputs);
+                            let mut out_bus = AudioBusBuffers {
+                                num_channels: 1,
+                                silence_flags: 0,
+                                channel_buffers_32: outputs.as_mut_ptr() as *mut _,
+                            };
 
-                    processor.set_processing(false);
+                            let mut out = HostParameterChanges::new();
 
-                    std::thread::sleep(Duration::from_millis(50));
+                            let mut data = ProcessData {
+                                process_mode: ProcessMode::Realtime,
+                                symbolic_sample_size: SymbolicSampleSize::Sample32,
+                                num_samples: 192,
+                                num_inputs: 1,
+                                num_outputs: 1,
+                                inputs: &mut in_bus,
+                                outputs: &mut out_bus,
+                                input_parameter_changes: Box::into_raw(Box::new(HostParameterChanges::new())) as *mut _,
+                                output_parameter_changes: None,
+                                input_events: None,
+                                output_events: None,
+                                process_context: None,
+                            };
+
+                            //let data = Arc::new(ProcessData::prepare(out, &inputs, &outputs));
+
+                            // processor.process(&mut data);
+                            count += 1;
+                            // let arr: &[*mut f32] = unsafe { std::slice::from_raw_parts(, 1) };
+                            // let arr: &[f32] = unsafe { std::slice::from_raw_parts(arr[0], block_size) };
+                            // info!("{:?}; ProcessData: {:?}", count, &mut outputs);
+
+                            // processor.set_processing(false);
+                            let samples = SamplesBuffer::new(1, 44100, data1);
+                            stream_handle.play_raw(samples);
+
+                            //samples.pl
+
+                            //sink.append(samples); 
+                            
+                            //sink.sleep_until_end();
+         
+                        }
+                    }
                 }
             }
         });
+        }
     }
 
     fn window_event(
@@ -137,6 +186,10 @@ impl Render for PlugView {
         event: &WindowEvent,
     ) {
         match event {
+            WindowEvent::CloseRequested => {
+                self.tx.as_ref().inspect(|tx| tx.send(PluginCommand::CloseWindow).unwrap());
+            }
+
             WindowEvent::Resized(size) => {
                 let rect = Box::new(Rect {
                     left: 0,

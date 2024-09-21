@@ -1,15 +1,13 @@
 use crate::ui::{plugview, settings};
 use crate::window::{Render, WindowContext};
-use crate::{plugin, renderer, App};
+use crate::{renderer, App};
 use egui::load::SizedTexture;
-use egui::{pos2, Color32};
-use log::info;
+use egui::pos2;
 use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::KeyCode;
-use winit::platform::windows::{WindowExtWindows, HWND};
-use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
+use winit::platform::windows::WindowExtWindows;
 use winit::window::WindowAttributes;
 
 pub fn init(cx: &mut App, event_loop: &ActiveEventLoop) {

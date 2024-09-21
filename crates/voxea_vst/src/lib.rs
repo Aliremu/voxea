@@ -8,13 +8,16 @@ use crate::base::funknown::{
     PFactoryInfo, TResult, ViewType, FUID,
 };
 use crate::vst::host_application::{
-    IConnectionPoint, IConnectionPoint_Impl, IMessage, IMessage_Impl, TestMessage,
+    IConnectionPoint, IConnectionPoint_Impl, IMessage, IMessage_Impl,
 };
 use anyhow::Result;
 use libc::c_char;
 use libloading::{Library, Symbol};
 use log::{info, warn};
+use std::error::Error;
 use std::ffi::{c_void, CStr, CString};
+use std::marker::PhantomData;
+use std::ops::Deref;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 use vst::audio_processor::speaker_arr::SpeakerArrangement;
@@ -25,6 +28,7 @@ use vst::audio_processor::{
 
 pub mod base;
 pub mod vst;
+pub mod gui;
 
 type InitDllProc = fn() -> bool;
 type ExitDllProc = fn() -> bool;
@@ -93,6 +97,73 @@ static mut CONTEXT: OnceLock<Arc<VSTHostContext>> = OnceLock::new();
 const VstAudioEffectClass: *const std::ffi::c_char =
     unsafe { CStr::from_bytes_with_nul_unchecked(b"editor\0") }.as_ptr();
 
+#[derive(Debug, Clone, Copy)]
+pub struct VSTPtr<T> {
+    data: *mut T,
+    _marker: PhantomData<T>
+}
+
+impl<T> VSTPtr<T> {
+    pub fn new(ptr: *mut T) -> Self {
+        Self {
+            data: ptr,
+            _marker: PhantomData
+        }
+    }
+}
+
+impl<T> Deref for VSTPtr<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe {
+            &*(self.data)
+        }
+    }
+}
+
+pub struct Module {
+    lib: Option<Library>,
+}
+
+impl Module {
+    pub fn new(path: &str) -> Result<Self, Box<dyn Error>> {
+        unsafe {
+            let lib = Library::new(path)?;
+            let init: Symbol<InitDllProc> = lib.get(b"InitDll")?;
+            init.call(());
+
+            Ok(Self {
+                lib: Some(lib)
+            })
+        }
+    }
+
+    pub fn get_factory(&mut self) -> Result<VSTPtr<IPluginFactory>, Box<dyn Error>> {
+        unsafe {
+            let raw_factory: Symbol<GetPluginFactoryProc> = self.lib
+                .as_ref()
+                .expect("Library is None!")
+                .get::<GetPluginFactoryProc>(b"GetPluginFactory")?;
+        
+            Ok(VSTPtr::new(raw_factory.call(())))
+        }
+    }
+}
+
+impl Drop for Module {
+    fn drop(&mut self) {
+        unsafe {
+            let mut lib = self.lib.take().unwrap();
+            let exit: Symbol<ExitDllProc> = lib.get(b"ExitDll").unwrap();
+            exit.call(());
+
+            lib.close().unwrap();
+        }
+    }
+}
+
+#[cfg(feature = "")]
 pub fn load_vst(plug: u32) -> Result<Arc<VSTHostContext>, TResult> {
     unsafe {
         let mut ctx = VSTHostContext::default();
@@ -202,7 +273,7 @@ pub fn load_vst(plug: u32) -> Result<Arc<VSTHostContext>, TResult> {
             let res = processor.setup_processing(&mut ProcessSetup {
                 process_mode: ProcessMode::Realtime,
                 symbolic_sample_size: SymbolicSampleSize::Sample32,
-                max_samples_per_block: 128,
+                max_samples_per_block: 192,
                 sample_rate: 44100.0,
             });
 

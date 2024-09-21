@@ -219,13 +219,6 @@ pub struct FUnknown_Vtbl {
     pub release: unsafe extern "thiscall" fn(this: *mut FUnknown) -> u32,
 }
 
-// #[interface(0x00000000, 0x00000000, 0xC0000000, 0x00000046)]
-// pub trait FUnknown {
-//     fn query_interface(&mut self, iid: [c_char; 16], obj: *mut *mut c_void) -> TResult;
-//     fn add_ref(&mut self) -> u32;
-//     fn release(&mut self) -> u32;
-// }
-
 #[interface(0x7A4D811C, 0x52114A1F, 0xAED9D2EE, 0x0B43BF9F)]
 pub trait IPluginFactory: FUnknown {
     fn get_factory_info(&mut self, info: *mut PFactoryInfo) -> TResult;

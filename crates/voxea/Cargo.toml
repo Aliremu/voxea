@@ -21,6 +21,7 @@ image.workspace = true
 log.workspace = true
 pollster.workspace = true
 rfd = "0.14.1"
+rodio.workspace = true
 rustc-hash.workspace = true
 tracing-subscriber.workspace = true
 wasmtime.workspace = true

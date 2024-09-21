@@ -310,3 +310,22 @@ fn decode_wav_file(file: String) -> Result<()> {
 
     Ok(())
 }
+
+
+pub fn host_device_setup() -> Result<(cpal::Host, cpal::Device, cpal::SupportedStreamConfig), anyhow::Error> {
+    let host = cpal::default_host();
+
+    let device = host
+        .default_output_device()
+        .ok_or_else(|| anyhow::Error::msg("Default output device is not available"))?;
+    println!("Output device : {}", device.name()?);
+
+    let config = device.default_output_config()?;
+    println!("Default output config : {:?}", config);
+
+    Ok((host, device, config))
+}
+
+pub fn lol() {
+    
+}

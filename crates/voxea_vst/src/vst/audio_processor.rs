@@ -28,40 +28,7 @@ pub struct ProcessData {
 }
 
 impl ProcessData {
-    pub fn prepare(
-        out: *mut IParameterChanges,
-        input: &[Option<&[f32; 4]>],
-        output: &[Option<&[f32; 4]>],
-    ) -> Self {
-        let mut input = Box::new(AudioBusBuffers {
-            num_channels: 1,
-            silence_flags: 0,
-            channel_buffers_32: input.as_ptr() as *mut _,
-        });
-
-        let mut output = Box::new(AudioBusBuffers {
-            num_channels: 1,
-            silence_flags: 0,
-            channel_buffers_32: output.as_ptr() as *mut _,
-        });
-
-        let parameter_changes = HostParameterChanges::new();
-
-        Self {
-            process_mode: ProcessMode::Realtime,
-            symbolic_sample_size: SymbolicSampleSize::Sample32,
-            num_samples: 4,
-            num_inputs: 1,
-            num_outputs: 1,
-            inputs: Box::into_raw(input) as *mut _,
-            outputs: Box::into_raw(output) as *mut _,
-            input_parameter_changes: Box::into_raw(parameter_changes) as *mut _,
-            output_parameter_changes: None,
-            input_events: None,
-            output_events: None,
-            process_context: None,
-        }
-    }
+   
 }
 
 #[repr(C)]
@@ -1137,8 +1104,8 @@ pub struct HostParameterChanges {
 }
 
 impl HostParameterChanges {
-    pub fn new() -> Box<Self> {
-        Box::new(Self {
+    pub fn new() -> Self {
+        Self {
             vtable: &[
                 <Self as FUnknown_HostImpl>::query_interface as *const (),
                 <Self as FUnknown_HostImpl>::add_ref as *const (),
@@ -1147,7 +1114,7 @@ impl HostParameterChanges {
                 <Self as IParameterChanges_HostImpl>::get_parameter_data as *const (),
                 <Self as IParameterChanges_HostImpl>::add_parameter_data as *const (),
             ],
-        })
+        }
     }
 }
 
@@ -1164,14 +1131,17 @@ impl FUnknown_HostImpl for HostParameterChanges {}
 
 impl IParameterChanges_HostImpl for HostParameterChanges {
     unsafe fn get_parameter_count(&mut self) -> i32 {
+        warn!("get_parameter_count");
         0
     }
 
     unsafe fn get_parameter_data(&mut self) -> *mut c_void {
+        warn!("get_parameter_data");
         std::ptr::null_mut()
     }
 
     unsafe fn add_parameter_data(&mut self, id: *const c_char, index: *mut i32) -> *mut c_void {
+        warn!("add_parameter_data");
         std::ptr::null_mut()
     }
 }

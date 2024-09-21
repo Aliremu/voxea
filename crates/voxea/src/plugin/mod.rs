@@ -62,7 +62,7 @@ pub fn init() -> Result<()> {
     // `Store` has a type parameter to store host-specific data, which in
     // this case we're using `4` for.
     let wasi = WasiCtxBuilder::new().inherit_stdio().inherit_args().build();
-    let mut store = Store::new(
+    let store = Store::new(
         &engine,
         MyState {
             ctx: wasi,
@@ -87,7 +87,7 @@ pub fn init() -> Result<()> {
 }
 
 pub fn load_plugins() -> Result<()> {
-    let Some(mut cx) = (unsafe { CONTEXT.get_mut() }) else {
+    let Some(cx) = (unsafe { CONTEXT.get_mut() }) else {
         warn!("Could not load plugins! Plugin Context not initialized!");
         return Err(anyhow!("Could not load plugins!"));
     };
@@ -128,7 +128,7 @@ pub fn load_plugins() -> Result<()> {
 
 pub fn process_signal() {
     unsafe {
-        let Some(mut cx) = CONTEXT.get_mut() else {
+        let Some(cx) = CONTEXT.get_mut() else {
             warn!("Plugin Context not initialized!");
             return;
         };

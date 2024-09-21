@@ -1,7 +1,5 @@
 use anyhow::Result;
-use image::codecs::png::PngDecoder;
-use image::{load_from_memory_with_format, GenericImageView, ImageFormat, ImageReader};
-use log::{info, warn};
+use image::{load_from_memory_with_format, GenericImageView, ImageFormat};
 use std::borrow::Cow;
 use std::sync::{Arc, OnceLock};
 use wgpu::util::{DeviceExt, TextureDataOrder};
@@ -67,7 +65,7 @@ impl RenderContext {
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shader.wgsl"))),
         });
 
-        let mut renderer =
+        let renderer =
             egui_wgpu::Renderer::new(&device, wgpu::TextureFormat::Bgra8UnormSrgb, None, 1);
 
         Self {

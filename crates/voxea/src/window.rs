@@ -1,4 +1,3 @@
-use crate::renderer::RenderContext;
 use crate::ui::menu;
 use crate::{renderer, App};
 use anyhow::Result;
@@ -146,7 +145,7 @@ impl Window {
                     multiview: None,
                 });
 
-        let mut config = surface
+        let config = surface
             .get_default_config(&render_context.adapter, width, height)
             .unwrap();
         // config.alpha_mode = wgpu::CompositeAlphaMode::PreMultiplied;
