@@ -18,9 +18,9 @@ pub trait IHostApplication: FUnknown {
 
 #[interface(0x93A0BEA3, 0x0BD045DB, 0x8E890B0C, 0xC1E46AC6)]
 pub trait IComponentHandler: FUnknown {
-    fn begin_edit(&mut self, id: *const c_char) -> TResult;
-    fn perform_edit(&mut self, id: *const c_char, value: u32) -> TResult;
-    fn end_edit(&mut self, id: *const c_char) -> TResult;
+    fn begin_edit(&mut self, id: u32) -> TResult;
+    fn perform_edit(&mut self, id: u32, value: u32) -> TResult;
+    fn end_edit(&mut self, id: u32) -> TResult;
     fn restart_component(&mut self, flags: i32) -> TResult;
 }
 

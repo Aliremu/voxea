@@ -19,6 +19,15 @@ pub mod PlatformType {
 
     pub const HWND: *const c_char =
         unsafe { CStr::from_bytes_with_nul_unchecked(b"HWND\0") }.as_ptr();
+
+    pub const HIView: *const c_char =
+        unsafe { CStr::from_bytes_with_nul_unchecked(b"HIView\0") }.as_ptr();
+
+    pub const NSView: *const c_char =
+        unsafe { CStr::from_bytes_with_nul_unchecked(b"NSView\0") }.as_ptr();
+
+    pub const UIView: *const c_char =
+        unsafe { CStr::from_bytes_with_nul_unchecked(b"UIView\0") }.as_ptr();
 }
 
 #[interface(0x367FAF01, 0xAFA94693, 0x8D4DA2A0, 0xED0882A3)]

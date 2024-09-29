@@ -2,7 +2,7 @@
 
 mod app;
 mod config;
-mod plugin;
+// mod plugin;
 mod renderer;
 mod ui;
 mod vst;
@@ -30,7 +30,6 @@ fn main() -> Result<()> {
         .with_timer(LocalTime::rfc_3339())
         .init();
 
-    plugin::init()?;
     renderer::init();
 
     let event_loop = EventLoop::builder()
@@ -41,10 +40,6 @@ fn main() -> Result<()> {
     let app = App::new();
     app.run(event_loop, |cx, event_loop| {
         menu::init(cx, event_loop);
-
-        std::thread::spawn(|| {
-            plugin::load_plugins().unwrap();
-        });
     });
 
     info!("Bye bye!");

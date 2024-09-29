@@ -2,6 +2,7 @@
 
 use anyhow::anyhow;
 use libc::c_char;
+use log::warn;
 use std::error::Error;
 use std::ffi::{c_float, c_void, CStr, CString};
 use std::fmt::Formatter;
@@ -9,6 +10,7 @@ use std::ops::Not;
 use voxea_macro::interface;
 
 use crate::gui::plug_view::{IPlugFrame, ViewRect};
+use crate::uid_to_ascii;
 use crate::vst::audio_processor::speaker_arr::SpeakerArrangement;
 use crate::vst::audio_processor::{
     BusDirection, BusInfo, IoMode, MediaType, ProcessData, ProcessSetup, RoutingInfo,
@@ -192,17 +194,20 @@ pub trait FUnknown_Impl: Interface {
 pub trait FUnknown_HostImpl {
     #[inline]
     unsafe fn query_interface(&mut self, iid: FUID, obj: *mut *mut c_void) -> TResult {
+        warn!("query_interface: {:?}, {:?}", uid_to_ascii(iid), iid);
         TResult::ResultOk
     }
 
     #[inline]
     unsafe fn add_ref(&mut self) -> u32 {
-        1000
+        // warn!("add_ref");
+        1
     }
 
     #[inline]
     unsafe fn release(&mut self) -> u32 {
-        1000
+        // warn!("release");
+        1
     }
 }
 
@@ -299,12 +304,13 @@ pub trait IPlugView: FUnknown {
     fn on_key_down(&mut self, key: u16, key_code: i16, modifiers: i16) -> TResult;
     fn on_key_up(&mut self, key: u16, key_code: i16, modifiers: i16) -> TResult;
 
-    fn on_size(&mut self, new_size: *const c_void) -> TResult;
+    fn get_size(&mut self, size: *mut ViewRect) -> TResult;
+    fn on_size(&mut self, new_size: *mut ViewRect) -> TResult;
     fn on_focus(&mut self, state: bool) -> TResult;
 
     fn set_frame(&mut self, frame: *mut IPlugFrame) -> TResult;
 
-    fn can_resize() -> TResult;
+    fn can_resize(&mut self) -> TResult;
     fn check_size_constraint(&mut self, rect: *mut ViewRect) -> TResult;
 }
 
@@ -426,10 +432,6 @@ pub trait IEditController: IPluginBase {
     fn set_component_handler(&mut self, handler: *mut c_void) -> TResult;
 
     fn create_view(&mut self, name: *const c_char) -> *mut IPlugView;
-
-    fn set_knob_mode(&mut self, val: bool) -> TResult;
-    fn open_help(&mut self, val: bool) -> TResult;
-    fn open_about_box(&mut self, val: bool) -> TResult;
 }
 
 pub mod ViewType {

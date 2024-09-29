@@ -1,5 +1,4 @@
 use crate::app::App;
-use crate::plugin;
 use crate::window::{Render, WindowContext};
 use cpal::traits::DeviceTrait;
 use egui::vec2;
@@ -260,7 +259,7 @@ impl Render for Settings {
                                 }
                             }
                         });
-                        ui.label(format!("{} plugins loaded", plugin::get_plugins()));
+                        ui.label(format!("{} plugins loaded", 1));
                     });
 
                     // StripBuilder::new(ui)
