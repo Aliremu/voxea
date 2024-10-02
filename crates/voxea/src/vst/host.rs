@@ -21,7 +21,10 @@ use voxea_vst::{
             ProcessSetup, SymbolicSampleSize,
         },
         host_application::{
-            IAttributeList, IAttributeList_HostImpl, IComponentHandler, IComponentHandler2, IComponentHandler2_HostImpl, IComponentHandler_HostImpl, IConnectionPoint, IConnectionPoint_Impl, IHostApplication, IHostApplication_HostImpl, IMessage, IMessage_HostImpl, String128
+            IAttributeList, IAttributeList_HostImpl, IComponentHandler, IComponentHandler2,
+            IComponentHandler2_HostImpl, IComponentHandler_HostImpl, IConnectionPoint,
+            IConnectionPoint_Impl, IHostApplication, IHostApplication_HostImpl, IMessage,
+            IMessage_HostImpl, String128,
         },
     },
     Module, VSTPtr,
@@ -61,9 +64,9 @@ impl VSTHostContext {
 
             let host = Arc::new(VSTHostApplication::new());
             let handler = Arc::new(HostComponentHandler::new());
-            
+
             let context = Arc::into_raw(host.clone()) as *mut FUnknown;
-            
+
             ctx.host = Some(host.clone());
             ctx.handler = Some(handler.clone());
 
@@ -76,7 +79,7 @@ impl VSTHostContext {
 
                 let comp = factory.create_instance::<IComponent>(class_info.cid)?;
                 comp.set_io_mode(IoMode::Advanced);
-                
+
                 let edit = match comp.get_controller_class_id() {
                     Ok(edit_cid) => {
                         warn!("Initializing create_instance!");
@@ -222,7 +225,8 @@ impl FUnknown_HostImpl for VSTHostApplication {
     unsafe fn query_interface(&mut self, iid: FUID, obj: *mut *mut c_void) -> TResult {
         warn!(
             "VSTHostApplication:query_interface: {:?}, {:?}",
-            uid_to_ascii(iid), iid
+            uid_to_ascii(iid),
+            iid
         );
         if iid == IHostApplication::iid {
             *obj = self as *mut _ as *mut c_void;
@@ -394,7 +398,6 @@ impl IPlugFrame_HostImpl for HostPlugFrame {
     }
 }
 
-
 #[repr(C)]
 pub struct HostMessage {
     vtable: &'static [*const (); 6],
@@ -409,13 +412,12 @@ impl HostMessage {
                 <Self as FUnknown_HostImpl>::query_interface as *const (),
                 <Self as FUnknown_HostImpl>::add_ref as *const (),
                 <Self as FUnknown_HostImpl>::release as *const (),
-
                 <Self as IMessage_HostImpl>::get_message_id as *const (),
                 <Self as IMessage_HostImpl>::set_message_id as *const (),
                 <Self as IMessage_HostImpl>::get_attributes as *const (),
             ],
             message_id: std::ptr::null(),
-            attributes: HostApplicationList::new()
+            attributes: HostApplicationList::new(),
         }
     }
 }
