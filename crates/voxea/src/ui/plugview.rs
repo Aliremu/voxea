@@ -7,7 +7,6 @@ use ringbuf::traits::{Consumer, Producer, Split};
 use ringbuf::HeapRb;
 use rodio::DeviceTrait;
 use voxea_vst::vst::audio_processor::{AudioBusBuffers, IParameterChanges, ProcessData, ProcessMode, SymbolicSampleSize};
-use std::cell::UnsafeCell;
 use std::ffi::c_void;
 use std::sync::{mpsc, Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
@@ -79,15 +78,6 @@ impl<const N: usize, const M: usize> Sync2DArray<N, M> {
     }
 }
 
-pub struct TestDrop {
-}
-
-impl Drop for TestDrop {
-    fn drop(&mut self) {
-        // warn!("TESTDROP HAS BEEN DROPPED???????????");
-    }
-}
-
 impl Render for PlugView {
     fn on_open(&mut self, cx: &mut WindowContext) {
         let window_handle = cx.window.window.window_handle().unwrap().as_raw();
@@ -114,13 +104,14 @@ impl Render for PlugView {
             unsafe {
                 let mut processor = vst.processor.unwrap();
 
-                const SAMPLE_RATE: f32 = 48000.0;
-                const BLOCK_SIZE: usize = 960;
+                const SAMPLE_RATE: f32 = 44100.0;
+                const BLOCK_SIZE: usize = 441;
                 const FREQUENCY: f32 = 440.0;
                 let phase_step = 2.0 * std::f32::consts::PI * FREQUENCY / SAMPLE_RATE;
                 let mut phase: f32 = 0.0;
 
                 let mut start = Instant::now();
+                let frame_time = Duration::from_secs_f64(BLOCK_SIZE as f64 / SAMPLE_RATE as f64);
 
                 let mut left_in = [0.5f32; BLOCK_SIZE];
                 let mut right_in = [0.5f32; BLOCK_SIZE];
@@ -131,21 +122,27 @@ impl Render for PlugView {
                 let mut right_out = [0.0f32; BLOCK_SIZE];
                 let mut data2 = [&mut left_out, &mut right_out];
 
+                // let host = cpal::available_hosts().iter().find(|id| id.name() == "ASIO").map(|id| cpal::host_from_id(*id)).unwrap().unwrap();
                 let host = cpal::default_host();
-                let device = host.default_output_device().unwrap();
-                let input_device = host.default_input_device().unwrap();
-                let config: cpal::StreamConfig = device.default_output_config().unwrap().into();
-                // let config = cpal::StreamConfig {
-                    // channels: 2,
-                    // sample_rate: cpal::SampleRate(44100),
-                    // buffer_size: cpal::BufferSize::Default
-                // };
-                warn!("Config: {:?}", config);
-                // cursed
-                let raw_ptr = data2.as_mut_ptr() as usize;
-                let latency = 5.0;
-                let latency_frames = (latency / 1_000.0) * SAMPLE_RATE as f32;
-                let latency_samples = 4410 * 2; //latency_frames as usize * 2.0 as usize;
+                warn!("Chosen host: {:?}", host.id().name());
+                warn!("HOSTS: {:?}", host.input_devices().unwrap().map(|device| device.name()).collect::<Vec<_>>());
+                // let output_device = host.output_devices().unwrap().find(|device| device.name().unwrap() == "Focusrite USB ASIO").unwrap();
+                let output_device = host.default_output_device().unwrap();
+                // let input_device = host.default_input_device().unwrap();
+                let input_device = host.input_devices().unwrap().find(|device| device.name().unwrap() == "Analogue 1 + 2 (Focusrite USB Audio)").unwrap();
+                // let config: cpal::StreamConfig = output_device.default_output_config().unwrap().into();
+                let config = cpal::StreamConfig {
+                    channels: 2,
+                    sample_rate: cpal::SampleRate(44100),
+                    buffer_size: cpal::BufferSize::Fixed(BLOCK_SIZE.try_into().unwrap())
+                };
+                // let config = cpal::SupportedStreamConfig::new(2, cpal::SampleRate(44100), cpal::SupportedBufferSize::Unknown, cpal::SampleFormat::F32).into();
+                warn!("Input Device: {:?}", input_device.name());
+                warn!("Output Device: {:?}", output_device.name());
+                warn!("Configs: {:?}\nConfig: {:?}", output_device.supported_output_configs().unwrap().collect::<Vec<_>>(), config);
+                // let latency = 5.0;
+                // let latency_frames = (latency / 1_000.0) * SAMPLE_RATE as f32;
+                let latency_samples = BLOCK_SIZE * 2; //latency_frames as usize * 2.0 as usize;
 
                 
                 // The buffer to share samples
@@ -157,74 +154,6 @@ impl Render for PlugView {
                     // so this should never fail
                     producer.try_push(0.0).unwrap();
                 }
-                let stream = device.build_output_stream(
-                    &config, 
-                    move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-                        // let raw: &mut [&mut [f32; BLOCK_SIZE]] = std::slice::from_raw_parts_mut(raw_ptr as *mut &mut [f32; BLOCK_SIZE], 2);
-                        // for (output_sample, &input_sample) in data.iter_mut().zip(raw[0].iter()) {
-                            // *output_sample = input_sample;
-                        // }
-                        //
-                        // for frame in data.chunks_mut(2) {
-                            // let sample = (phase).sin();
-                            // phase += phase_step;
-                            
-                            // Wrap phase to prevent overflow
-                            // if phase >= 2.0 * std::f32::consts::PI {
-                                // phase -= 2.0 * std::f32::consts::PI;
-                            // }
-
-                            // Assign sample to both left and right channels (stereo)
-                            // frame[0] = sample; // Left channel
-                            // frame[3] = sample; // Right channel
-                        // }
-                        //
-
-                        
-                            // for (i, frame) in data.chunks_mut(2).enumerate() {
-                                // if i >= BLOCK_SIZE {
-                                    // break;
-                                // }
-
-                                // frame[0] = raw[0][i % BLOCK_SIZE];  // Left channel
-                                // frame[1] = raw[1][i % BLOCK_SIZE]; // Right channel
-                            // }
-                            //
-                            //
-                        for sample in data.chunks_mut(2) {
-                            let s = match consumer.try_pop() {
-                                Some(s) => s,
-                                None => {
-                                    0.0
-                                }
-                            };
-                            
-                            // *sample = s;
-                            sample[0] = s;
-                            sample[1] = s;
-                        }
-
-                    }, 
-                    move |err| {
-                        warn!("STREAM ERROR: {:?}", err);
-                    },
-                    None).unwrap();
-
-                // let record = input_device.build_input_stream(
-                    // &config, 
-                    // move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                        // for &sample in data {
-                            // if producer.try_push(sample).is_err() {
-                            // 
-                            // }
-                        // }
-                    // }, 
-                    // move |err| {
-                    // }, 
-                    // None).unwrap();
-
-                // record.play().unwrap();
-                stream.play().unwrap();
 
                 let mut in_bus = AudioBusBuffers {
                     num_channels: 2,
@@ -241,7 +170,7 @@ impl Render for PlugView {
                 let mut input_params = HostParameterChanges::new();
                 let mut output_params: *mut c_void = std::ptr::null_mut();
 
-                let mut data = ProcessData {
+                let mut process_data = ProcessData {
                     process_mode: ProcessMode::Realtime,
                     symbolic_sample_size: SymbolicSampleSize::Sample32,
                     num_samples: BLOCK_SIZE as i32,
@@ -258,37 +187,145 @@ impl Render for PlugView {
 
                 processor.set_processing(true);
 
+
+                let output_stream = output_device.build_output_stream(
+                    &config, 
+                    move |data: &mut [i32], info: &cpal::OutputCallbackInfo| {
+                        // warn!("Output data len: {:?}", info);
+                        // for frame in data {
+                            // consumer.try_pop();
+
+                            // let sample = (phase).sin();
+                            // phase += phase_step;
+                            
+                            // Wrap phase to prevent overflow
+                            // if phase >= 2.0 * std::f32::consts::PI {
+                                // phase -= 2.0 * std::f32::consts::PI;
+                            // }
+
+                            // Assign sample to both left and right channels (stereo)
+                            // *frame = (sample * i32::MAX as f32).round().clamp(i32::MIN as f32, i32::MAX as f32) as i32; // Left channel
+                            // frame[3] = sample; // Right channel
+                        // }
+
+
+                        for sample in data {
+                            *sample = match consumer.try_pop() {
+                                Some(s) => {
+                                    let scaled = s * i32::MAX as f32;
+                                    // Clamp the value to ensure it stays within the valid i32 range
+                                    scaled.round().clamp(i32::MIN as f32, i32::MAX as f32) as i32
+                                }
+                                None => {
+                                    0
+                                }
+                            };
+                        }
+
+                        // for sample in data.chunks_mut(2) {
+                            // let l = match consumer.try_pop() {
+                                // Some(s) => {
+                                    // let scaled = s * i32::MAX as f32;
+                                    // Clamp the value to ensure it stays within the valid i32 range
+                                    // scaled.round().clamp(i32::MIN as f32, i32::MAX as f32) as i32
+                                // }
+
+                                // None => {
+                                    // 0
+                                // }
+                            // };
+
+                            // let r = match consumer.try_pop() {
+                                // Some(s) => {
+                                    // let scaled = s * i32::MAX as f32;
+                                    // Clamp the value to ensure it stays within the valid i32 range
+                                    // scaled.round().clamp(i32::MIN as f32, i32::MAX as f32) as i32
+                                // }
+
+                                // None => {
+                                    // 0
+                                // }
+                            // };
+
+
+                            // sample[0] = l;
+                            // sample[1] = r;
+                        // }
+
+                    }, 
+                    move |err| {
+                        warn!("STREAM ERROR: {:?}", err);
+                    },
+                    None).unwrap();
+                
+                let process_data_ptr = &mut process_data as *mut _ as usize;
+                let data1_ptr = data1.as_mut_ptr() as usize;
+                let data2_ptr = data2.as_mut_ptr() as usize;
+
+                let input_stream = input_device.build_input_stream(
+                    &config, 
+                    move |data: &[i32], _: &cpal::InputCallbackInfo| {
+                        // warn!("Input data len: {:?}", data.len());
+                        let raw_data1: &mut [&mut [f32; BLOCK_SIZE]] = std::slice::from_raw_parts_mut(data1_ptr as *mut &mut [f32; BLOCK_SIZE], 2);
+                        let raw_data2: &mut [&mut [f32; BLOCK_SIZE]] = std::slice::from_raw_parts_mut(data2_ptr as *mut &mut [f32; BLOCK_SIZE], 2);
+                        for (i, frame) in data.chunks(2).enumerate() {
+                            raw_data1[0][i] = frame[0] as f32 / i32::MAX as f32;
+                            raw_data1[1][i] = frame[1] as f32 / i32::MAX as f32;
+                        }
+
+
+                        let raw_process_data = std::mem::transmute::<usize, &mut ProcessData>(process_data_ptr);
+                        processor.process(raw_process_data);
+
+                        let mut interleaved = [0.0; BLOCK_SIZE * 2];
+
+                        for (i, frame) in interleaved.chunks_mut(2).enumerate() {
+                            // frame[0] = raw_data2[0][i];
+                            // frame[1] = raw_data2[1][i];
+                            producer.try_push(raw_data2[0][i]);
+                            producer.try_push(raw_data2[1][i]);
+                        }
+                    }, 
+                    move |err| {
+                    }, 
+                    None).unwrap();
+
+                input_stream.play().unwrap();
+                output_stream.play().unwrap();
+
                 loop {
                     match rx.try_recv() {
                         Ok(_msg) => {
                             warn!("Window closed!");
+                            drop(input_stream);
+                            drop(output_stream);
                             processor.set_processing(false);
                             panic!();
                         }
 
                         Err(_err) => {
-                            if(start.elapsed() > Duration::from_millis(19)) {
+                            // if Instant::now() > start {
+                                // start = start + frame_time;
                             // Generate a sine wave for BLOCK_SIZE samples
-                            for n in 0..BLOCK_SIZE {
-                                let sample = (phase).sin();
-                                phase += phase_step;
+                            // for n in 0..BLOCK_SIZE {
+                                // let sample = (phase).sin();
+                                // phase += phase_step;
 
                                 // Wrap phase around to prevent overflow
-                                if phase >= 2.0 * std::f32::consts::PI {
-                                    phase -= 2.0 * std::f32::consts::PI;
-                                }
+                                // if phase >= 2.0 * std::f32::consts::PI {
+                                    // phase -= 2.0 * std::f32::consts::PI;
+                                // }
 
                                 // Assign sample to both channels (stereo)
-                                data1[0][n] = sample;
-                                data1[1][n] = sample;
-                            }
+                                // data1[0][n] = sample;
+                                // data1[1][n] = sample;
+                            // }
 
-                            processor.process(&mut data);
+                            // processor.process(&mut process_data);
 
-                            producer.push_slice(data2[0]);
-                            // producer.push_slice(data2[1]);
-                            start = Instant::now();
-                            }
+                            // producer.push_slice(data2[0]);
+                            
+                            // }
 
                             // for (l, r) in data2[0].iter().zip(data2[1].iter()) {
                                 // producer.try_push(*l);

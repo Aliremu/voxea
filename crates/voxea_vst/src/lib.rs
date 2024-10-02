@@ -64,6 +64,9 @@ impl<T> DerefMut for VSTPtr<T> {
     }
 }
 
+unsafe impl<T> Sync for VSTPtr<T> {}
+unsafe impl<T> Send for VSTPtr<T> {}
+
 pub struct Module {
     lib: Option<Library>,
 }

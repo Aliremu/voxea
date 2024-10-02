@@ -89,7 +89,7 @@ impl VSTHostContext {
                     }
                 };
 
-                let res = comp.initialize(context);
+                let _ = comp.initialize(context);
 
                 let component_connection = comp.query_interface::<IConnectionPoint>()?;
                 let controller_connection = edit.query_interface::<IConnectionPoint>()?;
@@ -110,7 +110,7 @@ impl VSTHostContext {
                     process_mode: ProcessMode::Realtime,
                     symbolic_sample_size: SymbolicSampleSize::Sample32,
                     max_samples_per_block: 960 * 2,
-                    sample_rate: 48000.0,
+                    sample_rate: 44100.0,
                 };
                 let res = processor.setup_processing(&mut data);
 
