@@ -21,7 +21,7 @@ use voxea_vst::{
             ProcessSetup, SymbolicSampleSize,
         },
         host_application::{
-            IAttributeList, IAttributeList_HostImpl, IComponentHandler, IComponentHandler2,
+            IAttributeList, IAttributeList_HostImpl, IComponentHandler2,
             IComponentHandler2_HostImpl, IComponentHandler_HostImpl, IConnectionPoint,
             IConnectionPoint_Impl, IHostApplication, IHostApplication_HostImpl, IMessage,
             IMessage_HostImpl, String128,

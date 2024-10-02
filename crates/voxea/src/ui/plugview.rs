@@ -7,12 +7,12 @@ use ringbuf::traits::{Consumer, Producer, Split};
 use ringbuf::HeapRb;
 use rodio::DeviceTrait;
 use std::ffi::c_void;
-use std::sync::{mpsc, Arc, Mutex, RwLock};
+use std::sync::{mpsc, Arc};
 use std::time::{Duration, Instant};
 use voxea_vst::base::funknown::{IAudioProcessor_Impl, IPlugView_Impl};
 use voxea_vst::gui::plug_view::{PlatformType, ViewRect};
 use voxea_vst::vst::audio_processor::{
-    AudioBusBuffers, IParameterChanges, ProcessData, ProcessMode, SymbolicSampleSize,
+    AudioBusBuffers, ProcessData, ProcessMode, SymbolicSampleSize,
 };
 use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
@@ -110,9 +110,9 @@ impl Render for PlugView {
                 const BLOCK_SIZE: usize = 441;
                 const FREQUENCY: f32 = 440.0;
                 let phase_step = 2.0 * std::f32::consts::PI * FREQUENCY / SAMPLE_RATE;
-                let mut phase: f32 = 0.0;
+                let phase: f32 = 0.0;
 
-                let mut start = Instant::now();
+                let start = Instant::now();
                 let frame_time = Duration::from_secs_f64(BLOCK_SIZE as f64 / SAMPLE_RATE as f64);
 
                 let mut left_in = [0.5f32; BLOCK_SIZE];
@@ -185,7 +185,7 @@ impl Render for PlugView {
                 };
 
                 let mut input_params = HostParameterChanges::new();
-                let mut output_params: *mut c_void = std::ptr::null_mut();
+                let output_params: *mut c_void = std::ptr::null_mut();
 
                 let mut process_data = ProcessData {
                     process_mode: ProcessMode::Realtime,
