@@ -3,6 +3,9 @@ use crate::window::{Render, Window, WindowContext};
 use anyhow::Result;
 use log::{error, warn};
 use rustc_hash::FxHashMap;
+use voxea_audio::vst::host::VSTHostContext;
+use voxea_audio::AudioEngine;
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use voxea_alloc::perf;
 use voxea_alloc::perf::PerfTrace;
@@ -15,6 +18,8 @@ use winit::window::{WindowAttributes, WindowId};
 #[derive(Default)]
 pub struct App {
     pub(crate) windows: FxHashMap<WindowId, Option<Window>>,
+    pub(crate) audio_engine: AudioEngine,
+    pub(crate) plugin_modules: Arc<RwLock<Vec<VSTHostContext>>>,
     pub(crate) on_start_callback: Option<Box<dyn FnOnce(&mut App, &ActiveEventLoop)>>,
     pub(crate) wait_cancelled: bool,
     pub(crate) render_context: Option<RenderContext>,
@@ -26,6 +31,8 @@ impl App {
     pub fn new() -> Self {
         Self {
             windows: FxHashMap::default(),
+            audio_engine: AudioEngine::default(),
+            plugin_modules: Arc::new(RwLock::new(Vec::new())),
             on_start_callback: None,
             wait_cancelled: false,
             render_context: None,
@@ -126,17 +133,7 @@ impl ApplicationHandler for App {
             return;
         };
 
-        let response = window.on_window_event(self, event_loop, &event);
-
-        match event {
-            WindowEvent::Resized(size) => {}
-
-            WindowEvent::RedrawRequested => {}
-
-            WindowEvent::CloseRequested => {}
-
-            _ => {}
-        }
+        let _response = window.on_window_event(self, event_loop, &event);
 
         if window.running {
             // Moves ownership of the window back to the App
@@ -169,3 +166,15 @@ impl ApplicationHandler for App {
         }
     }
 }
+
+//pub struct AsyncApp {
+//    app: Weak<Mutex<App>>
+//}
+//
+//impl AsyncApp {
+//    pub fn new(app: &mut App) -> Self {
+//        Self {
+//            app: Weak::new()
+//        }
+//    }
+//}

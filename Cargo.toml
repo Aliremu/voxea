@@ -42,3 +42,6 @@ wgpu = { version = "0.20.1", default-features = true, features = [
     "fragile-send-sync-non-atomic-wasm",
 ] }
 winit = { version = "0.30.5" }
+
+[patch.crates-io]
+cpal = { git = 'https://github.com/sidit77/cpal.git' }

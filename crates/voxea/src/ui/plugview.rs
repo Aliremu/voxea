@@ -1,4 +1,3 @@
-use crate::vst::host::{HostParameterChanges, VSTHostContext};
 use crate::window::{Render, WindowContext};
 use crate::App;
 use cpal::traits::{HostTrait, StreamTrait};
@@ -6,6 +5,7 @@ use log::warn;
 use ringbuf::traits::{Consumer, Producer, Split};
 use ringbuf::HeapRb;
 use rodio::DeviceTrait;
+use voxea_audio::vst::host::{HostParameterChanges, VSTHostContext};
 use std::ffi::c_void;
 use std::sync::{mpsc, Arc};
 use std::time::{Duration, Instant};
@@ -106,8 +106,8 @@ impl Render for PlugView {
             unsafe {
                 let mut processor = vst.processor.unwrap();
 
-                const SAMPLE_RATE: f32 = 44100.0;
-                const BLOCK_SIZE: usize = 441;
+                const SAMPLE_RATE: f32 = 48000.0;
+                const BLOCK_SIZE: usize = 480;
                 const FREQUENCY: f32 = 440.0;
                 let phase_step = 2.0 * std::f32::consts::PI * FREQUENCY / SAMPLE_RATE;
                 let phase: f32 = 0.0;
@@ -135,19 +135,22 @@ impl Render for PlugView {
                 );
                 // let output_device = host.output_devices().unwrap().find(|device| device.name().unwrap() == "Focusrite USB ASIO").unwrap();
                 let output_device = host.default_output_device().unwrap();
-                // let input_device = host.default_input_device().unwrap();
-                let input_device = host
-                    .input_devices()
-                    .unwrap()
-                    .find(|device| device.name().unwrap() == "Analogue 1 + 2 (Focusrite USB Audio)")
-                    .unwrap();
+                let input_device = host.default_input_device().unwrap();
+                // let input_device = host
+                    // .input_devices()
+                    // .unwrap()
+                    // .find(|device| device.name().unwrap() == "Analogue 1 + 2 (Focusrite USB Audio)")
+                    // .unwrap();
                 // let config: cpal::StreamConfig = output_device.default_output_config().unwrap().into();
                 let config = cpal::StreamConfig {
                     channels: 2,
-                    sample_rate: cpal::SampleRate(44100),
+                    sample_rate: cpal::SampleRate(SAMPLE_RATE as u32),
                     buffer_size: cpal::BufferSize::Fixed(BLOCK_SIZE.try_into().unwrap()),
                 };
                 // let config = cpal::SupportedStreamConfig::new(2, cpal::SampleRate(44100), cpal::SupportedBufferSize::Unknown, cpal::SampleFormat::F32).into();
+                let input_config = input_device.default_input_config().unwrap().into();
+                let output_config = output_device.default_output_config().unwrap().into();
+
                 warn!("Input Device: {:?}", input_device.name());
                 warn!("Output Device: {:?}", output_device.name());
                 warn!(
@@ -196,17 +199,17 @@ impl Render for PlugView {
                     inputs: &mut in_bus,
                     outputs: &mut out_bus,
                     input_parameter_changes: &mut input_params as *mut _ as *mut c_void,
-                    output_parameter_changes: None,
-                    input_events: None,
-                    output_events: None,
-                    process_context: None,
+                    output_parameter_changes: std::ptr::null_mut(),
+                    input_events: std::ptr::null_mut(),
+                    output_events: std::ptr::null_mut(),
+                    process_context: std::ptr::null_mut(),
                 };
 
                 processor.set_processing(true);
 
                 let output_stream = output_device
                     .build_output_stream(
-                        &config,
+                        &output_config,
                         move |data: &mut [i32], info: &cpal::OutputCallbackInfo| {
                             // warn!("Output data len: {:?}", info);
                             // for frame in data {
@@ -279,7 +282,7 @@ impl Render for PlugView {
 
                 let input_stream = input_device
                     .build_input_stream(
-                        &config,
+                        &input_config,
                         move |data: &[i32], _: &cpal::InputCallbackInfo| {
                             // warn!("Input data len: {:?}", data.len());
                             let raw_data1: &mut [&mut [f32; BLOCK_SIZE]] =

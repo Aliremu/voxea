@@ -21,13 +21,23 @@ pub struct ProcessData {
     pub inputs: *mut AudioBusBuffers,
     pub outputs: *mut AudioBusBuffers,
     pub input_parameter_changes: *mut c_void,
-    pub output_parameter_changes: Option<*mut c_void>,
-    pub input_events: Option<*mut c_void>,
-    pub output_events: Option<*mut c_void>,
-    pub process_context: Option<*mut c_void>,
+    pub output_parameter_changes: *mut c_void,
+    pub input_events: *mut c_void,
+    pub output_events: *mut c_void,
+    pub process_context: *mut ProcessContext,
 }
 
 impl ProcessData {}
+
+unsafe impl Send for ProcessData {}
+unsafe impl Sync for ProcessData {}
+
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct ProcessContext {
+    pub padding: [u8; 200],
+}
 
 #[repr(C)]
 #[derive(Debug)]

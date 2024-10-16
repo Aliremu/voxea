@@ -113,7 +113,7 @@ impl VSTHostContext {
                     process_mode: ProcessMode::Realtime,
                     symbolic_sample_size: SymbolicSampleSize::Sample32,
                     max_samples_per_block: 960 * 2,
-                    sample_rate: 44100.0,
+                    sample_rate: 48000.0,
                 };
                 let res = processor.setup_processing(&mut data);
 
@@ -178,6 +178,8 @@ impl VSTHostContext {
 impl Drop for VSTHostContext {
     fn drop(&mut self) {
         unsafe {
+            warn!("Dropping VSTHostContext!");
+
             self.controller_connection.take().unwrap().release();
             self.component_connection.take().unwrap().release();
             self.view.unwrap().removed();

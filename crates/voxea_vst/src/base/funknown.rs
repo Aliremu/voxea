@@ -23,7 +23,7 @@ pub trait Marker<T> {}
 pub trait DefaultImplementation<T> {}
 
 pub trait Interface {
-    type VTable;
+    type VTable: 'static;
     fn vtable(&self) -> &'static Self::VTable;
 
     #[allow(non_upper_case_globals)]
@@ -181,8 +181,8 @@ pub trait FUnknown_Impl: Interface {
 
     #[inline]
     unsafe fn release(&mut self) -> u32
-    where
-        <Self as Interface>::VTable: 'static,
+    // where
+        // <Self as Interface>::VTable: 'static,
     {
         (std::mem::transmute::<&'static Self::VTable, &FUnknown_Vtbl>(self.vtable()).release)(
             self as *mut _ as *mut FUnknown,

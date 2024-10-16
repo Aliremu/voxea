@@ -149,6 +149,7 @@ impl Render for Settings {
 
     fn render(&mut self, cx: &mut WindowContext, event_loop: &ActiveEventLoop) {
         let window = &mut cx.window;
+        let app = &mut cx.app;
         let inner_size = window
             .window
             .inner_size()
@@ -205,6 +206,7 @@ impl Render for Settings {
 
                             if response.changed() {
                                 self.select_host(self.selected_host.clone());
+                                app.audio_engine.select_host(&self.selected_host);
                             }
                         });
 

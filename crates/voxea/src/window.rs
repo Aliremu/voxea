@@ -19,13 +19,13 @@ pub struct WindowContext<'a> {
 pub trait Render: 'static {
     fn window_event(
         &mut self,
-        cx: &mut WindowContext,
-        event_loop: &ActiveEventLoop,
-        event: &WindowEvent,
+        _cx: &mut WindowContext,
+        _event_loop: &ActiveEventLoop,
+        _event: &WindowEvent,
     ) {
     }
 
-    fn on_open(&mut self, cx: &mut WindowContext) {}
+    fn on_open(&mut self, _cx: &mut WindowContext) {}
 
     fn render(&mut self, cx: &mut WindowContext, event_loop: &ActiveEventLoop);
 }

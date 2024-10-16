@@ -3,90 +3,24 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{
     Device, Devices, FromSample, Host, HostId, InputDevices, OutputDevices, Sample, SizedSample,
 };
-use log::{error, info};
-use std::fmt::Debug;
+use log::{error, info, warn};
+use ringbuf::traits::{Consumer, Producer, Split, SplitRef};
+use ringbuf::{producer, HeapRb};
+use rubato::{Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction};
+use voxea_vst::base::funknown::IAudioProcessor_Impl;
+use voxea_vst::vst::audio_processor::{AudioBusBuffers, ProcessContext, ProcessData, ProcessMode, SymbolicSampleSize};
+use vst::host::{HostParameterChanges, VSTHostContext};
+use std::cell::UnsafeCell;
 use std::fs::File;
 use std::io::BufWriter;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
-// pub fn enumerate_hosts() -> Result<()> {
-//     info!("Supported hosts:\n  {:?}", cpal::ALL_HOSTS);
-//     let available_hosts = cpal::available_hosts();
-//     info!("Available hosts:\n  {:?}", available_hosts);
-//
-//     for host_id in available_hosts {
-//         info!("{}", host_id.name());
-//         let host = cpal::host_from_id(host_id)?;
-//
-//         let default_in = host.default_input_device().map(|e| e.name().unwrap());
-//         let default_out = host.default_output_device().map(|e| e.name().unwrap());
-//         info!("  Default Input Device:\n    {:?}", default_in);
-//         info!("  Default Output Device:\n    {:?}", default_out);
-//
-//         let devices = host.devices()?;
-//         info!("  Devices: ");
-//         for (device_index, device) in devices.enumerate() {
-//             info!("  {}. \"{}\"", device_index + 1, device.name()?);
-//
-//             // Input configs
-//             if let Ok(conf) = device.default_input_config() {
-//                 info!("    Default input stream config:\n      {:?}", conf);
-//             }
-//             let input_configs = match device.supported_input_configs() {
-//                 Ok(f) => f.collect(),
-//                 Err(e) => {
-//                     info!("    Error getting supported input configs: {:?}", e);
-//                     Vec::new()
-//                 }
-//             };
-//             if !input_configs.is_empty() {
-//                 info!("    All supported input stream configs:");
-//                 for (config_index, config) in input_configs.into_iter().enumerate() {
-//                     info!(
-//                         "      {}.{}. {:?}",
-//                         device_index + 1,
-//                         config_index + 1,
-//                         config
-//                     );
-//                 }
-//             }
-//
-//             // Output configs
-//             if let Ok(conf) = device.default_output_config() {
-//                 info!("    Default output stream config:\n      {:?}", conf);
-//             }
-//             let output_configs = match device.supported_output_configs() {
-//                 Ok(f) => f.collect(),
-//                 Err(e) => {
-//                     info!("    Error getting supported output configs: {:?}", e);
-//                     Vec::new()
-//                 }
-//             };
-//             if !output_configs.is_empty() {
-//                 info!("    All supported output stream configs:");
-//                 for (config_index, config) in output_configs.into_iter().enumerate() {
-//                     info!(
-//                         "      {}.{}. {:?}",
-//                         device_index + 1,
-//                         config_index + 1,
-//                         config
-//                     );
-//                 }
-//             }
-//         }
-//     }
-//
-//     Ok(())
-// }
+pub mod vst;
 
 pub fn enumerate_hosts() -> Vec<HostId> {
     let available_hosts = cpal::available_hosts();
 
     available_hosts
-    // available_hosts
-    //     .into_iter()
-    //     .filter_map(|host_id| cpal::host_from_id(host_id).ok())
-    //     .collect()
 }
 
 pub fn enumerate_input_devices(id: &HostId) -> Vec<Device> {
@@ -326,4 +260,325 @@ pub fn host_device_setup(
     Ok((host, device, config))
 }
 
-pub fn lol() {}
+
+#[repr(C)]
+#[derive(Clone)]
+pub struct Sync2DArray<T: Copy + Clone + Sized, const CHANNELS: usize, const BUFFER_SIZE: usize> {
+    references: Arc<[*mut T; CHANNELS]>,
+    data: Arc<UnsafeCell<[[T; BUFFER_SIZE]; CHANNELS]>>,
+    buffer_size: usize,
+}
+
+unsafe impl<T: Copy + Clone, const CHANNELS: usize, const BUFFER_SIZE: usize> Sync
+    for Sync2DArray<T, CHANNELS, BUFFER_SIZE>
+{
+}
+unsafe impl<T: Copy + Clone, const CHANNELS: usize, const BUFFER_SIZE: usize> Send
+    for Sync2DArray<T, CHANNELS, BUFFER_SIZE>
+{
+}
+
+impl<T: Copy + Clone, const CHANNELS: usize, const BUFFER_SIZE: usize> Sync2DArray<T, CHANNELS, BUFFER_SIZE> {
+    fn new(default: T, buffer_size: usize) -> Self {
+        unsafe {
+            let data = Arc::new(UnsafeCell::new([[default; BUFFER_SIZE]; CHANNELS]));
+            let references = Arc::new(std::array::from_fn(|i| (*data.get())[i].as_mut_ptr()));
+            warn!("{:?} references!", references.len());
+            Self { 
+                references, 
+                data,
+                buffer_size,
+            }
+        }
+    }
+
+    pub fn read(&self) -> &[T] {
+        unsafe { std::slice::from_raw_parts_mut(self.data.get() as *mut _, self.buffer_size * CHANNELS) }
+    }
+
+    pub fn as_ptr(&mut self) -> *const *mut T {
+        self.references.as_ptr()
+    }
+
+    pub fn write(&mut self, channel: usize, idx: usize, sample: T) {
+        unsafe {
+            (*self.data.get())[channel][idx] = sample;
+        }
+    }
+
+    pub fn as_ref(&self) -> &[&mut [T; BUFFER_SIZE]; CHANNELS] {
+        unsafe {
+            &*std::mem::transmute::<*const [*mut T; CHANNELS], *mut [&mut [T; BUFFER_SIZE]; CHANNELS]>(Arc::into_raw(self.references.clone()))
+        }
+    }
+
+    pub fn as_mut_ref(&mut self) -> &mut [&mut [T; BUFFER_SIZE]; CHANNELS] {
+        unsafe {
+            &mut *std::mem::transmute::<*const [*mut T; CHANNELS], *mut [&mut [T; BUFFER_SIZE]; CHANNELS]>(Arc::into_raw(self.references.clone()))
+        }
+    }
+}
+
+impl<T: Copy + Clone, const CHANNELS: usize, const BUFFER_SIZE: usize> Drop for Sync2DArray<T, CHANNELS, BUFFER_SIZE> {
+    fn drop(&mut self) {
+        warn!("Dropping Sync2DArray!");
+    }
+}
+
+#[repr(C)]
+pub struct Process(UnsafeCell<ProcessData>);
+
+unsafe impl Send for Process {}
+unsafe impl Sync for Process {}
+
+const MAX_BLOCK_SIZE: usize = 2048;
+
+pub struct AudioEngine {
+    pub(crate) host: cpal::Host,
+    pub(crate) input_device: cpal::Device,
+    pub(crate) output_device: cpal::Device,
+    pub(crate) input_config: cpal::StreamConfig,
+    pub(crate) output_config: cpal::StreamConfig,
+    pub(crate) input_stream: Option<cpal::Stream>,
+    pub(crate) output_stream: Option<cpal::Stream>,
+    // pub(crate) ring_buffer: HeapRb<f32>,
+
+    pub(crate) input_data: Sync2DArray<f32, 2, MAX_BLOCK_SIZE>,
+    pub(crate) output_data: Sync2DArray<f32, 2, MAX_BLOCK_SIZE>,
+    pub(crate) resampled_data: Sync2DArray<f32, 2, MAX_BLOCK_SIZE>,
+
+    pub(crate) in_bus: Arc<UnsafeCell<AudioBusBuffers>>,
+    pub(crate) out_bus: Arc<UnsafeCell<AudioBusBuffers>>,
+
+    pub(crate) input_params: Arc<UnsafeCell<HostParameterChanges>>,
+    pub(crate) process_context: Arc<UnsafeCell<ProcessContext>>,
+    pub(crate) process_data: Arc<ProcessData>,
+
+    pub(crate) plugin_modules: Arc<RwLock<Vec<VSTHostContext>>>
+}
+
+impl Default for AudioEngine {
+    fn default() -> Self {
+
+        // https://github.com/RustAudio/cpal/issues/884
+        // https://github.com/RustAudio/cpal/issues/657
+        //
+        // When using ASIO:
+        // https://stackoverflow.com/questions/78319116/no-audio-input-via-asio-with-feedback-example-using-cpal
+        let host = cpal::default_host();
+        let input_device = host.default_input_device().expect("Failed to get default input device!");
+        let output_device = host.default_output_device().expect("Failed to get defaut output device!");
+
+        info!("Supported Input Configs: {:?}", input_device.supported_input_configs().unwrap().collect::<Vec<_>>());
+        info!("Supported Output Configs: {:?}", output_device.supported_output_configs().unwrap().collect::<Vec<_>>());
+        
+        let input_config = input_device.default_input_config().unwrap().into();
+        let output_config = output_device.default_output_config().unwrap().into();
+
+        info!("Creating AudioEngine with:\n\tHost: {:?}\n\tInput: {:?}\n\tOutput: {:?}\n\tConfig: {:?}", host.id(), input_device.name(), output_device.name(), input_config);
+        // info!("\tHost: {:?}", host.id());
+        // info!("\tInput: {:?}", input_device.name());
+        // info!("\tOutput: {:?}", output_device.name());
+        // info!("\tConfig: {:?}", config);
+        //
+        
+        let mut input_data = Sync2DArray::<f32, 2, MAX_BLOCK_SIZE>::new(0.0f32, MAX_BLOCK_SIZE);
+        let mut output_data = Sync2DArray::<f32, 2, MAX_BLOCK_SIZE>::new(0.0f32, MAX_BLOCK_SIZE);
+        let resampled_data = Sync2DArray::<f32, 2, MAX_BLOCK_SIZE>::new(0.0f32, MAX_BLOCK_SIZE);
+
+        let in_bus = Arc::new(UnsafeCell::new(AudioBusBuffers {
+            num_channels: 2,
+            silence_flags: 0,
+            channel_buffers_32: input_data.as_ptr() as *mut _,
+        }));
+
+        let out_bus = Arc::new(UnsafeCell::new(AudioBusBuffers {
+            num_channels: 2,
+            silence_flags: 0,
+            channel_buffers_32: output_data.as_ptr() as *mut _,
+        }));
+
+        let input_params = Arc::new(UnsafeCell::new(HostParameterChanges::new()));
+        let process_context = Arc::new(UnsafeCell::new(ProcessContext {
+            padding: [0; 200]
+        }));
+
+        let process_data = Arc::new(ProcessData {
+            process_mode: ProcessMode::Realtime,
+            symbolic_sample_size: SymbolicSampleSize::Sample32,
+            num_samples: 480 as i32,
+            num_inputs: 1,
+            num_outputs: 1,
+            inputs: in_bus.get(),
+            outputs: out_bus.get(),
+            input_parameter_changes: input_params.get() as *mut _,
+            output_parameter_changes: std::ptr::null_mut(),
+            input_events: std::ptr::null_mut(),
+            output_events: std::ptr::null_mut(),
+            process_context: std::ptr::null_mut(),
+        });
+        
+        let plugin_modules = Arc::new(RwLock::new(Vec::new()));
+
+        Self {
+            host,
+            input_device,
+            output_device,
+            input_config,
+            output_config,
+
+            input_stream: None,
+            output_stream: None,
+
+            input_data,
+            output_data,
+            resampled_data,
+
+            in_bus,
+            out_bus,
+
+            input_params,
+            process_context,
+
+            process_data,
+
+            plugin_modules,
+        }
+    }
+}
+
+impl AudioEngine {
+    pub fn run(&mut self) {
+        let channels = self.input_config.channels as usize;
+        let plugin_modules = self.plugin_modules.clone();
+        let buffer_size = 480;
+
+        let ring = HeapRb::<f32>::new(buffer_size * channels * 2);
+        let (mut producer, mut consumer) = ring.split();
+        let params = SincInterpolationParameters {
+            sinc_len: 256,
+            f_cutoff: 0.95,
+            interpolation: SincInterpolationType::Linear,
+            oversampling_factor: 256,
+            window: WindowFunction::BlackmanHarris2,
+        };
+        let mut resampler = SincFixedIn::<f32>::new(
+            self.output_config.sample_rate.0 as f64 / self.input_config.sample_rate.0 as f64,
+            2.0,
+            params,
+            buffer_size,
+            channels,
+        )
+        .unwrap();
+
+        let process_data = self.process_data.clone();
+        let mut input_data = self.input_data.clone();
+        let output_data = self.output_data.clone();
+        let mut resampled_data = self.resampled_data.clone();
+
+        let input_stream = self.input_device.build_input_stream(
+            &self.input_config,
+            move |data: &[i32], _: &cpal::InputCallbackInfo| {
+
+                let block_size = data.len() / channels;
+
+                for (i, frame) in data.chunks(channels).enumerate() {
+                    for j in 0..channels {
+                        input_data.write(j, i, frame[j] as f32 / i32::MAX as f32);
+                    }
+                }
+
+                unsafe {
+                    for plugin in plugin_modules.write().unwrap().iter_mut() {
+                        let data = process_data.clone();
+                        plugin.processor.as_mut().unwrap().process(Arc::into_raw(data) as *mut _);
+                    }
+                }
+ 
+                resampler.process_partial_into_buffer(Some(output_data.as_ref()), resampled_data.as_mut_ref(), None).unwrap();
+
+                for i in 0..block_size {
+                    resampled_data.as_ref().iter().for_each(|v| {
+                        let Some(sample) = v.get(i) else { 
+                            return; 
+                        };
+                        
+                        let _ = producer.try_push(*sample);
+                    });
+                }
+            },
+            |err| {
+                error!("Input stream error! {:?}", err);
+            },
+            None).expect("Faied to create input stream!");
+
+
+        let output_stream = self.output_device.build_output_stream(
+            &self.output_config,
+            move |data: &mut [i32], _: &cpal::OutputCallbackInfo| {
+                for sample in data {
+                    *sample = match consumer.try_pop() {
+                        Some(s) => {
+                            let scaled = s * i32::MAX as f32;
+                            // Clamp the value to ensure it stays within the valid i32 range
+                            scaled.round().clamp(i32::MIN as f32, i32::MAX as f32) as i32
+                        }
+                        None => 0,
+                    };
+                }
+            },
+            |err| {
+                error!("Output stream error! {:?}", err);
+            },
+            None).expect("Faied to create output stream!");
+
+        input_stream.play().unwrap();
+        output_stream.play().unwrap();
+
+        self.input_stream = Some(input_stream);
+        self.output_stream = Some(output_stream);
+    }
+
+    pub fn add_plugin(&mut self, path: &str) {
+        let Ok(mut plugin) = VSTHostContext::new(path) else {
+            warn!("Failed to load plugin: {:?}", path);
+            return;
+        };
+
+        unsafe {
+            plugin.processor.as_mut().unwrap().set_processing(true);
+        }
+
+        self.plugin_modules.write().unwrap().push(plugin);
+    }
+
+    pub fn select_host(&mut self, host: &str) {
+        self.input_stream.take().unwrap().pause().unwrap();
+        self.output_stream.take().unwrap().pause().unwrap();
+
+        let Some(host) = cpal::available_hosts().into_iter().find(|id| id.name() == host).map_or(None, |id| cpal::host_from_id(id).ok()) else {
+            warn!("Failed to get host: {:?}", host);
+            return;
+        };
+
+        let input_device = host.default_input_device().expect("Failed to get default input device!");
+        let output_device = host.default_output_device().expect("Failed to get defaut output device!");
+
+        info!("Supported Input Configs: {:?}", input_device.supported_input_configs().unwrap().collect::<Vec<_>>());
+        info!("Supported Output Configs: {:?}", output_device.supported_output_configs().unwrap().collect::<Vec<_>>());
+        
+        let input_config = input_device.default_input_config().unwrap().into();
+        let output_config = output_device.default_output_config().unwrap().into();
+
+        info!("Creating AudioEngine with:\n\tHost: {:?}\n\tInput: {:?}\n\tOutput: {:?}\n\tConfig: {:?}", host.id(), input_device.name(), output_device.name(), input_config);
+        
+        self.host = host;
+        self.input_device = input_device;
+        self.output_device = output_device;
+        
+        self.input_config = input_config;
+        self.output_config = output_config;
+
+        self.run();
+    }
+}

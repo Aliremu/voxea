@@ -41,7 +41,7 @@ pub fn init() {
     }
 }
 
-/// Beings a perf session for a region
+/// Begins a perf session for a region
 pub fn begin(region: &'static str) {
     unsafe {
         REGISTRY

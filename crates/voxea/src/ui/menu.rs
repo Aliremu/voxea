@@ -60,8 +60,6 @@ impl Render for Menu {
         }
     }
     fn render(&mut self, cx: &mut WindowContext, event_loop: &ActiveEventLoop) {
-        // plugin::process_signal();
-
         let window = &mut cx.window;
 
         let app = &mut cx.app;

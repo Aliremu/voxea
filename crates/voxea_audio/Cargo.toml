@@ -4,11 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+voxea_vst.workspace = true
 anyhow.workspace = true
 cpal.workspace = true
 hound = "3.5.1"
 log.workspace = true
+ringbuf.workspace = true
 rodio.workspace = true
+rubato = "0.16.0"
 rustc-hash.workspace = true
 thiserror.workspace = true
 tracing-subscriber.workspace = true
