@@ -5,11 +5,11 @@ extern crate quote;
 extern crate proc_macro2;
 
 use proc_macro::TokenStream;
-use proc_macro2::{Span, TokenStream as TokenStream2};
+use proc_macro2::TokenStream as TokenStream2;
 use std::ffi::c_char;
 use syn::parse::{Parse, ParseBuffer, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::{parse_macro_input, Attribute, FnArg, Ident, Meta, Pat, Token, TraitItemFn, Visibility};
+use syn::{parse_macro_input, FnArg, Ident, Meta, Pat, Token, TraitItemFn, Visibility};
 
 struct Interface {
     vis: Visibility,

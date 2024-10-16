@@ -1,11 +1,11 @@
 use anyhow::Result;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{
-    Device, Devices, FromSample, Host, HostId, InputDevices, OutputDevices, Sample, SizedSample,
+    Device, FromSample, HostId, Sample, SizedSample,
 };
 use log::{error, info, warn};
-use ringbuf::traits::{Consumer, Producer, Split, SplitRef};
-use ringbuf::{producer, HeapRb};
+use ringbuf::traits::{Consumer, Producer, Split};
+use ringbuf::HeapRb;
 use rubato::{
     Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction,
 };
@@ -244,7 +244,7 @@ where
 }
 
 fn decode_wav_file(file: String) -> Result<()> {
-    let mut wav = hound::WavReader::open(file)?;
+    let wav = hound::WavReader::open(file)?;
 
     Ok(())
 }
