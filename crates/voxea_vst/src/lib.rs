@@ -65,11 +65,11 @@ impl<T: FUnknown_Impl> DerefMut for VSTPtr<T> {
 }
 
 // impl<T: FUnknown_Impl> Drop for VSTPtr<T> {
-    // fn drop(&mut self) {
-        // unsafe {
-            // self.release();   
-        // }    
-    // }
+// fn drop(&mut self) {
+// unsafe {
+// self.release();
+// }
+// }
 // }
 
 unsafe impl<T: FUnknown_Impl> Sync for VSTPtr<T> {}

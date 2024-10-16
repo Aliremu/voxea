@@ -41,7 +41,8 @@ fn main() -> Result<()> {
     app.run(event_loop, |cx, event_loop| {
         cx.audio_engine.run();
 
-        let paths = fs::read_dir("C:/Coding/RustRover/voxea/vst3/WithUI").expect("Could not read plugins directory!");
+        let paths = fs::read_dir("C:/Coding/RustRover/voxea/vst3/WithUI")
+            .expect("Could not read plugins directory!");
 
         // Checks for all .vert, .frag, or .comp files in shaders directory and compiles them to SPIR-V
         paths
@@ -52,7 +53,7 @@ fn main() -> Result<()> {
                 if path.extension().map_or(false, |ext| ext == "vst3") {
                     // let parent = path.parent().unwrap();
                     // let name = path.file_name().unwrap().to_str().unwrap();
-                    
+
                     cx.audio_engine.add_plugin(path.to_str().unwrap());
                 }
             });

@@ -181,7 +181,7 @@ pub trait FUnknown_Impl: Interface {
 
     #[inline]
     unsafe fn release(&mut self) -> u32
-    // where
+// where
         // <Self as Interface>::VTable: 'static,
     {
         (std::mem::transmute::<&'static Self::VTable, &FUnknown_Vtbl>(self.vtable()).release)(

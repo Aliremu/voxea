@@ -5,10 +5,10 @@ use log::warn;
 use ringbuf::traits::{Consumer, Producer, Split};
 use ringbuf::HeapRb;
 use rodio::DeviceTrait;
-use voxea_audio::vst::host::{HostParameterChanges, VSTHostContext};
 use std::ffi::c_void;
 use std::sync::{mpsc, Arc};
 use std::time::{Duration, Instant};
+use voxea_audio::vst::host::{HostParameterChanges, VSTHostContext};
 use voxea_vst::base::funknown::{IAudioProcessor_Impl, IPlugView_Impl};
 use voxea_vst::gui::plug_view::{PlatformType, ViewRect};
 use voxea_vst::vst::audio_processor::{
@@ -137,10 +137,10 @@ impl Render for PlugView {
                 let output_device = host.default_output_device().unwrap();
                 let input_device = host.default_input_device().unwrap();
                 // let input_device = host
-                    // .input_devices()
-                    // .unwrap()
-                    // .find(|device| device.name().unwrap() == "Analogue 1 + 2 (Focusrite USB Audio)")
-                    // .unwrap();
+                // .input_devices()
+                // .unwrap()
+                // .find(|device| device.name().unwrap() == "Analogue 1 + 2 (Focusrite USB Audio)")
+                // .unwrap();
                 // let config: cpal::StreamConfig = output_device.default_output_config().unwrap().into();
                 let config = cpal::StreamConfig {
                     channels: 2,

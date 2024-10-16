@@ -32,7 +32,6 @@ impl ProcessData {}
 unsafe impl Send for ProcessData {}
 unsafe impl Sync for ProcessData {}
 
-
 #[repr(C)]
 #[derive(Debug)]
 pub struct ProcessContext {
