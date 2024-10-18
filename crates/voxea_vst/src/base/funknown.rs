@@ -275,7 +275,10 @@ pub trait IPluginFactory: FUnknown {
         let res =
             (std::mem::transmute::<&'static Self::VTable, &IPluginFactory_Vtbl>(self.vtable())
                 .create_instance)(
-                self as *const _ as *mut IPluginFactory, cid, T::iid, &mut tmp
+                self as *const _ as *mut IPluginFactory,
+                cid,
+                T::iid,
+                &mut tmp,
             );
 
         if res != TResult::ResultOk || tmp.is_null() {
@@ -350,8 +353,9 @@ pub trait IComponent: IPluginBase {
 
     fn get_controller_class_id(&mut self) -> Result<FUID, TResult> {
         let mut cid = FUID::default();
-        let res = (std::mem::transmute::<&'static Self::VTable, &IComponent_Vtbl>(self.vtable())
-            .get_controller_class_id)(self as *const _ as *mut IComponent, &mut cid);
+        let res =
+            (std::mem::transmute::<&'static Self::VTable, &IComponent_Vtbl>(self.vtable())
+                .get_controller_class_id)(self as *const _ as *mut IComponent, &mut cid);
 
         if res != TResult::ResultOk {
             Err(res)

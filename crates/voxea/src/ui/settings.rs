@@ -32,11 +32,15 @@ pub fn init(cx: &mut App, event_loop: &ActiveEventLoop, parent: &WinitWindow) {
 
     let hosts = voxea_audio::enumerate_hosts();
 
-    let inputs = cx.audio_engine.enumerate_input_devices()
+    let inputs = cx
+        .audio_engine
+        .enumerate_input_devices()
         .iter()
         .filter_map(|d| d.name().ok())
         .collect();
-    let outputs = cx.audio_engine.enumerate_output_devices()
+    let outputs = cx
+        .audio_engine
+        .enumerate_output_devices()
         .iter()
         .filter_map(|d| d.name().ok())
         .collect();
@@ -46,12 +50,8 @@ pub fn init(cx: &mut App, event_loop: &ActiveEventLoop, parent: &WinitWindow) {
         .map(|h| h.name().to_string())
         .collect::<Vec<String>>();
 
-    let selected_input = cx.audio_engine.input_device
-        .name()
-        .unwrap();
-    let selected_output = cx.audio_engine.output_device
-        .name()
-        .unwrap();
+    let selected_input = cx.audio_engine.input_device.name().unwrap();
+    let selected_output = cx.audio_engine.output_device.name().unwrap();
     let selected_host = cx.audio_engine.host.id().name().to_string();
 
     let settings = Settings {
@@ -100,8 +100,18 @@ impl Settings {
 
         cx.audio_engine.select_host(&self.selected_host);
 
-        self.inputs = cx.audio_engine.cached_input_devices.get(&cx.audio_engine.host.id()).unwrap().clone();
-        self.outputs = cx.audio_engine.cached_output_devices.get(&cx.audio_engine.host.id()).unwrap().clone();
+        self.inputs = cx
+            .audio_engine
+            .cached_input_devices
+            .get(&cx.audio_engine.host.id())
+            .unwrap()
+            .clone();
+        self.outputs = cx
+            .audio_engine
+            .cached_output_devices
+            .get(&cx.audio_engine.host.id())
+            .unwrap()
+            .clone();
 
         self.selected_input = cx.audio_engine.input_device.name().unwrap().to_string();
         self.selected_output = cx.audio_engine.output_device.name().unwrap().to_string();
@@ -214,8 +224,10 @@ impl Render for Settings {
                             let response = combo.inner.unwrap_or(combo.response);
 
                             if response.changed() {
-                                app.audio_engine.select_input_device(self.selected_input.clone());
-                                self.selected_output = app.audio_engine.output_device.name().unwrap().to_string();
+                                app.audio_engine
+                                    .select_input_device(self.selected_input.clone());
+                                self.selected_output =
+                                    app.audio_engine.output_device.name().unwrap().to_string();
                             }
                         });
 
@@ -243,9 +255,11 @@ impl Render for Settings {
                             let response = combo.inner.unwrap_or(combo.response);
 
                             if response.changed() {
-                                app.audio_engine.select_output_device(self.selected_output.clone());
-                                self.selected_input = app.audio_engine.input_device.name().unwrap().to_string();
-                            }                        
+                                app.audio_engine
+                                    .select_output_device(self.selected_output.clone());
+                                self.selected_input =
+                                    app.audio_engine.input_device.name().unwrap().to_string();
+                            }
                         });
                     });
 

@@ -25,9 +25,7 @@ pub fn init(cx: &mut App, event_loop: &ActiveEventLoop, plug: u32) {
         .with_title("Plugin")
         .with_inner_size(PhysicalSize::new(1200, 800));
 
-    let plugin = PlugView {
-        tx: None,
-    };
+    let plugin = PlugView { tx: None };
 
     let _ = cx
         .open_window(
@@ -57,7 +55,10 @@ impl Render for PlugView {
         };
 
         unsafe {
-            cx.app.audio_engine.plugin_modules.read()
+            cx.app
+                .audio_engine
+                .plugin_modules
+                .read()
                 .expect("Could not read plugin modules!")
                 .get(0)
                 .expect("Could not get plugin 0!")
@@ -80,7 +81,10 @@ impl Render for PlugView {
                 });
 
                 unsafe {
-                    cx.app.audio_engine.plugin_modules.read()
+                    cx.app
+                        .audio_engine
+                        .plugin_modules
+                        .read()
                         .expect("Could not read plugin modules!")
                         .get(0)
                         .expect("Could not get plugin 0!")
@@ -90,19 +94,25 @@ impl Render for PlugView {
                 }
             }
 
-            WindowEvent::Resized(_size) => {
-                unsafe {
-                    let view = cx.app.audio_engine.plugin_modules.read().unwrap().get(0).unwrap()
-                        .view
-                        .unwrap();
-                    let mut rect = ViewRect::default();
-                    view.check_size_constraint(&mut rect);
-                    let _ = cx.window
-                        .window
-                        .request_inner_size(PhysicalSize::new(rect.right, rect.bottom));
-                    warn!("SIZE CONSTRAINTS: {:?}", rect);
-                }
-            }
+            WindowEvent::Resized(_size) => unsafe {
+                let view = cx
+                    .app
+                    .audio_engine
+                    .plugin_modules
+                    .read()
+                    .unwrap()
+                    .get(0)
+                    .unwrap()
+                    .view
+                    .unwrap();
+                let mut rect = ViewRect::default();
+                view.check_size_constraint(&mut rect);
+                let _ = cx
+                    .window
+                    .window
+                    .request_inner_size(PhysicalSize::new(rect.right, rect.bottom));
+                warn!("SIZE CONSTRAINTS: {:?}", rect);
+            },
 
             _ => {}
         };
