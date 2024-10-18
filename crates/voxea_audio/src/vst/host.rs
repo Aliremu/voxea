@@ -112,8 +112,8 @@ impl VSTHostContext {
                 let mut data = ProcessSetup {
                     process_mode: ProcessMode::Realtime,
                     symbolic_sample_size: SymbolicSampleSize::Sample32,
-                    max_samples_per_block: 960 * 2,
-                    sample_rate: 48000.0,
+                    max_samples_per_block: 2048,
+                    sample_rate: 44100.0,
                 };
                 let res = processor.setup_processing(&mut data);
 

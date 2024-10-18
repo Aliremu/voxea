@@ -1,7 +1,7 @@
 use anyhow::Result;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{
-    Device, FromSample, HostId, Sample, SizedSample,
+    Device, FromSample, HostId, Sample, SizedSample, StreamConfig,
 };
 use log::{error, info, warn};
 use ringbuf::traits::{Consumer, Producer, Split};
@@ -9,6 +9,8 @@ use ringbuf::HeapRb;
 use rubato::{
     Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction,
 };
+use rustc_hash::FxHashMap;
+use voxea_alloc::perf::{self, PerfTrace};
 use std::cell::UnsafeCell;
 use std::fs::File;
 use std::io::BufWriter;
@@ -339,44 +341,74 @@ impl<T: Copy + Clone, const CHANNELS: usize, const BUFFER_SIZE: usize> Drop
     }
 }
 
-#[repr(C)]
-pub struct Process(UnsafeCell<ProcessData>);
-
-unsafe impl Send for Process {}
-unsafe impl Sync for Process {}
-
 const MAX_BLOCK_SIZE: usize = 2048;
 
 pub struct AudioEngine {
-    pub(crate) host: cpal::Host,
-    pub(crate) input_device: cpal::Device,
-    pub(crate) output_device: cpal::Device,
-    pub(crate) input_config: cpal::StreamConfig,
-    pub(crate) output_config: cpal::StreamConfig,
-    pub(crate) input_stream: Option<cpal::Stream>,
-    pub(crate) output_stream: Option<cpal::Stream>,
-    // pub(crate) ring_buffer: HeapRb<f32>,
-    pub(crate) input_data: Sync2DArray<f32, 2, MAX_BLOCK_SIZE>,
-    pub(crate) output_data: Sync2DArray<f32, 2, MAX_BLOCK_SIZE>,
-    pub(crate) resampled_data: Sync2DArray<f32, 2, MAX_BLOCK_SIZE>,
+    // Currently selected host
+    pub host: cpal::Host,
 
-    pub(crate) in_bus: Arc<UnsafeCell<AudioBusBuffers>>,
-    pub(crate) out_bus: Arc<UnsafeCell<AudioBusBuffers>>,
+    // Currently selected input and output devices
+    pub input_device: cpal::Device,
+    pub output_device: cpal::Device,
 
-    pub(crate) input_params: Arc<UnsafeCell<HostParameterChanges>>,
-    pub(crate) process_context: Arc<UnsafeCell<ProcessContext>>,
-    pub(crate) process_data: Arc<ProcessData>,
+    pub input_config: cpal::StreamConfig,
+    pub output_config: cpal::StreamConfig,
 
-    pub(crate) plugin_modules: Arc<RwLock<Vec<VSTHostContext>>>,
+    pub input_stream: Option<cpal::Stream>,
+    pub output_stream: Option<cpal::Stream>,
+
+    // Data needed to pass through FFI stored as global memory on the heap for optimization
+    pub input_data: Sync2DArray<f32, 2, MAX_BLOCK_SIZE>,
+    pub output_data: Sync2DArray<f32, 2, MAX_BLOCK_SIZE>,
+    pub resampled_data: Sync2DArray<f32, 2, MAX_BLOCK_SIZE>,
+
+    pub in_bus: Arc<UnsafeCell<AudioBusBuffers>>,
+    pub out_bus: Arc<UnsafeCell<AudioBusBuffers>>,
+
+    pub input_params: Arc<UnsafeCell<HostParameterChanges>>,
+    pub process_context: Arc<UnsafeCell<ProcessContext>>,
+    pub process_data: Arc<ProcessData>,
+
+    pub plugin_modules: Arc<RwLock<Vec<VSTHostContext>>>,
+
+    // Cache input and output devices on startup since for certain drivers like ASIO, selecting a
+    // device removes all other devices.
+    pub cached_input_devices: FxHashMap<HostId, Vec<String>>,
+    pub cached_output_devices: FxHashMap<HostId, Vec<String>>,
 }
 
 impl Default for AudioEngine {
     fn default() -> Self {
         // https://github.com/RustAudio/cpal/issues/884
         // https://github.com/RustAudio/cpal/issues/657
-        //
-        // When using ASIO:
-        // https://stackoverflow.com/questions/78319116/no-audio-input-via-asio-with-feedback-example-using-cpal
+        
+        let mut cached_input_devices = FxHashMap::default();
+        let mut cached_output_devices = FxHashMap::default();
+        
+        cpal::available_hosts().iter().for_each(|id| {
+            let Ok(host) = cpal::host_from_id(*id) else {
+                warn!("Failed to get host from id: {:?}", id.name());
+                return;
+            };
+
+            let Ok(input_devices) = host.input_devices() else {
+                warn!("Failed to get input devices for host {:?}!", id.name());
+                return;
+            };
+
+            let input_devices = input_devices.map(|f| f.name().unwrap().to_string()).collect::<Vec<String>>();
+
+            let Ok(output_devices) = host.output_devices() else {
+                warn!("Failed to get output devices for host {:?}!", id.name());
+                return;
+            };
+
+            let output_devices = output_devices.map(|f| f.name().unwrap().to_string()).collect::<Vec<String>>();
+
+            cached_input_devices.entry(id.clone()).and_modify(|f: &mut Vec<String>| f.extend(input_devices.clone())).or_insert(input_devices.clone());
+            cached_output_devices.entry(id.clone()).and_modify(|f: &mut Vec<String>| f.extend(output_devices.clone())).or_insert(output_devices.clone());
+        });
+        
         let host = cpal::default_host();
         let input_device = host
             .default_input_device()
@@ -432,7 +464,7 @@ impl Default for AudioEngine {
         let process_data = Arc::new(ProcessData {
             process_mode: ProcessMode::Realtime,
             symbolic_sample_size: SymbolicSampleSize::Sample32,
-            num_samples: 480 as i32,
+            num_samples: 192 as i32,
             num_inputs: 1,
             num_outputs: 1,
             inputs: in_bus.get(),
@@ -469,6 +501,9 @@ impl Default for AudioEngine {
             process_data,
 
             plugin_modules,
+
+            cached_input_devices,
+            cached_output_devices,
         }
     }
 }
@@ -477,7 +512,7 @@ impl AudioEngine {
     pub fn run(&mut self) {
         let channels = self.input_config.channels as usize;
         let plugin_modules = self.plugin_modules.clone();
-        let buffer_size = 480;
+        let buffer_size = 192;
 
         let ring = HeapRb::<f32>::new(buffer_size * channels * 2);
         let (mut producer, mut consumer) = ring.split();
@@ -507,6 +542,7 @@ impl AudioEngine {
             .build_input_stream(
                 &self.input_config,
                 move |data: &[i32], _: &cpal::InputCallbackInfo| {
+                    // perf::begin_perf!("audio_input_stream");
                     let block_size = data.len() / channels;
 
                     for (i, frame) in data.chunks(channels).enumerate() {
@@ -516,11 +552,11 @@ impl AudioEngine {
                     }
 
                     unsafe {
-                        for plugin in plugin_modules.write().unwrap().iter_mut() {
+                        for plugin in plugin_modules.read().unwrap().iter() {
                             let data = process_data.clone();
                             plugin
                                 .processor
-                                .as_mut()
+                                .as_ref()
                                 .unwrap()
                                 .process(Arc::into_raw(data) as *mut _);
                         }
@@ -607,12 +643,21 @@ impl AudioEngine {
             return;
         };
 
+        warn!("Available Input Devices: {:?}", host.input_devices().unwrap().map(|f| f.name().unwrap()).collect::<Vec<_>>());
+
         let input_device = host
             .default_input_device()
             .expect("Failed to get default input device!");
-        let output_device = host
-            .default_output_device()
-            .expect("Failed to get defaut output device!");
+
+        // https://stackoverflow.com/questions/78319116/no-audio-input-via-asio-with-feedback-example-using-cpal
+        // Since ASIO expects input/output to be exclusive, they need to be the same device.
+        let output_device = if host.id() == cpal::HostId::Asio {
+            input_device.clone()
+        } else { 
+            host
+                .default_output_device()
+                .expect("Failed to get defaut output device!")
+        };
 
         info!(
             "Supported Input Configs: {:?}",
@@ -635,6 +680,7 @@ impl AudioEngine {
         info!("Creating AudioEngine with:\n\tHost: {:?}\n\tInput: {:?}\n\tOutput: {:?}\n\tConfig: {:?}", host.id(), input_device.name(), output_device.name(), input_config);
 
         self.host = host;
+
         self.input_device = input_device;
         self.output_device = output_device;
 
@@ -642,5 +688,96 @@ impl AudioEngine {
         self.output_config = output_config;
 
         self.run();
+    }
+
+    pub fn select_input_device(&mut self, device_name: String) {
+        self.input_stream.take().unwrap().pause().unwrap();
+        self.output_stream.take().unwrap().pause().unwrap();
+
+        // TODO(@Aliremu): Temporary fix to make sure ASIO devices are refreshed when trying to
+        // choose another device.
+        let old_host = self.host.id();
+        self.host = cpal::default_host();
+        self.input_device = self.host.default_input_device().unwrap();
+        self.input_config = self.input_device.default_input_config().unwrap().into();
+        
+        self.host = cpal::host_from_id(old_host).unwrap();
+
+        let input_device = self.host
+                .input_devices()
+                .unwrap()
+                .find(|device| device.name().unwrap() == device_name)
+                .unwrap();
+        
+        let input_config: StreamConfig = input_device.default_input_config().unwrap().into();
+        
+        info!(
+            "Supported Input Configs: {:?}\nChosen Input Config: {:?}",
+            input_device
+                .supported_input_configs()
+                .unwrap()
+                .collect::<Vec<_>>(),
+            input_config
+        );
+
+        if self.host.id() == cpal::HostId::Asio {
+            let output_device = input_device.clone();
+            
+            self.output_device = output_device;
+            self.output_config = input_config.clone();
+        }
+  
+        self.input_device = input_device;
+        self.input_config = input_config;
+
+        self.run();
+    }
+
+    pub fn select_output_device(&mut self, device_name: String) {
+        self.input_stream.take().unwrap().pause().unwrap();
+        self.output_stream.take().unwrap().pause().unwrap();
+
+        let old_host = self.host.id();
+        self.host = cpal::default_host();
+        self.output_device = self.host.default_output_device().unwrap();
+        self.output_config = self.output_device.default_output_config().unwrap().into();
+        
+        self.host = cpal::host_from_id(old_host).unwrap();
+
+        let output_device = self.host
+                .output_devices()
+                .unwrap()
+                .find(|device| device.name().unwrap() == device_name)
+                .unwrap();
+        
+        let output_config: StreamConfig = output_device.default_output_config().unwrap().into();
+        
+        info!(
+            "Supported Output Configs: {:?}\nChosen Output Config: {:?}",
+            output_device
+                .supported_output_configs()
+                .unwrap()
+                .collect::<Vec<_>>(),
+            output_config
+        );
+
+        if self.host.id() == cpal::HostId::Asio {
+            let input_device = output_device.clone();
+            
+            self.input_device = input_device;
+            self.input_config = output_config.clone();
+        }
+  
+        self.output_device = output_device;
+        self.output_config = output_config;
+
+        self.run();
+    }
+    pub fn enumerate_input_devices(&self) -> Vec<Device> {
+        self.host.input_devices().expect(&format!("Failed to get devices for host: {:?}", self.host.id().name())).collect()
+    }
+
+    pub fn enumerate_output_devices(&self) -> Vec<Device> {
+        self.host.output_devices().expect(&format!("Failed to get devices for host: {:?}", self.host.id().name())).collect()
     }
 }

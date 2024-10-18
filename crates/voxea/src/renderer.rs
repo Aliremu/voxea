@@ -1,5 +1,5 @@
 use anyhow::Result;
-use image::{load_from_memory_with_format, GenericImageView, ImageFormat};
+use image::{load_from_memory_with_format, ImageFormat};
 use std::borrow::Cow;
 use std::sync::{Arc, OnceLock};
 use wgpu::util::{DeviceExt, TextureDataOrder};

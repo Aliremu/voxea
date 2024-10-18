@@ -173,7 +173,7 @@ impl Interface {
                 //     (std::mem::transmute::<&'static Self::VTable, &#vtable_name>(self.vtable()).#method_ident)(self as *mut _ as *mut #ident, #arg_inputs)
                 // };
                 let body = method.default.clone().map_or(quote! {
-                    (std::mem::transmute::<&'static Self::VTable, &#vtable_name>(self.vtable()).#method_ident)(self as *mut _ as *mut #ident, #arg_inputs)
+                    (std::mem::transmute::<&'static Self::VTable, &#vtable_name>(self.vtable()).#method_ident)(self as *const _ as *mut #ident, #arg_inputs)
                 }, |b| {
                     quote! {
                         #b
@@ -182,7 +182,7 @@ impl Interface {
 
                 quote! {
                     #[inline]
-                    unsafe fn #method_ident #method_generics(&mut self, #args) #output
+                    unsafe fn #method_ident #method_generics(&self, #args) #output
                     where <Self as Interface>::VTable: 'static {
                         #body
                     }

@@ -247,7 +247,7 @@ pub trait IPluginFactory: FUnknown {
         let res =
             (std::mem::transmute::<&'static Self::VTable, &IPluginFactory_Vtbl>(self.vtable())
                 .get_class_info)(
-                self as *mut _ as *mut IPluginFactory,
+                self as *const _ as *mut IPluginFactory,
                 index,
                 &mut class_info,
             );
@@ -275,7 +275,7 @@ pub trait IPluginFactory: FUnknown {
         let res =
             (std::mem::transmute::<&'static Self::VTable, &IPluginFactory_Vtbl>(self.vtable())
                 .create_instance)(
-                self as *mut _ as *mut IPluginFactory, cid, T::iid, &mut tmp
+                self as *const _ as *mut IPluginFactory, cid, T::iid, &mut tmp
             );
 
         if res != TResult::ResultOk || tmp.is_null() {
@@ -338,7 +338,7 @@ pub trait IAudioProcessor: FUnknown {
 
     fn set_processing(&mut self, state: bool) -> TResult;
 
-    fn process(&mut self, data: *mut ProcessData) -> TResult;
+    fn process(&self, data: *mut ProcessData) -> TResult;
 
     fn get_tail_samples(&mut self) -> u32;
 }
@@ -351,7 +351,7 @@ pub trait IComponent: IPluginBase {
     fn get_controller_class_id(&mut self) -> Result<FUID, TResult> {
         let mut cid = FUID::default();
         let res = (std::mem::transmute::<&'static Self::VTable, &IComponent_Vtbl>(self.vtable())
-            .get_controller_class_id)(self as *mut _ as *mut IComponent, &mut cid);
+            .get_controller_class_id)(self as *const _ as *mut IComponent, &mut cid);
 
         if res != TResult::ResultOk {
             Err(res)

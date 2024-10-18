@@ -157,6 +157,7 @@ impl Drop for PerfTrace {
 #[macro_export]
 macro_rules! begin_perf {
     () => {
+        #[cfg(debug_assertions)]
         let _guard = PerfTrace::new({
             fn f() {}
             fn type_name_of<T>(_: T) -> &'static str {
@@ -168,6 +169,7 @@ macro_rules! begin_perf {
     };
 
     ($region: tt) => {
+        #[cfg(debug_assertions)]
         let _guard = PerfTrace::new($region);
     };
 }
