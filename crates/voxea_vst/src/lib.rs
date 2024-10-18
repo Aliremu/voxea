@@ -1,310 +1,125 @@
 #![feature(fn_traits)]
+#![allow(warnings)]
 
-use std::ffi::{c_void, CStr};
-use std::fmt::Formatter;
+use crate::base::funknown::{
+    FUnknown, FUnknown_Impl, IAudioProcessor, IAudioProcessor_Impl, IComponent, IComponent_Impl,
+    IEditController, IEditController_Impl, IPlugView, IPlugViewContentScaleSupport, IPlugView_Impl,
+    IPluginBase, IPluginBase_Impl, IPluginFactory, IPluginFactory_Impl, Interface, PClassInfo,
+    PFactoryInfo, TResult, ViewType, FUID,
+};
+use crate::vst::host_application::{
+    IConnectionPoint, IConnectionPoint_Impl, IMessage, IMessage_Impl,
+};
+use anyhow::Result;
 use libc::c_char;
 use libloading::{Library, Symbol};
+use log::{info, warn};
+use std::error::Error;
+use std::ffi::{c_void, CStr, CString};
+use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
+use std::sync::{Arc, OnceLock};
+use std::time::Duration;
+use vst::audio_processor::speaker_arr::SpeakerArrangement;
+use vst::audio_processor::{
+    AudioBusBuffers, BusDirection, BusInfo, IParameterChanges, IoMode, MediaType, ProcessData,
+    ProcessMode, ProcessSetup, SymbolicSampleSize,
+};
+use vst::host_application::IComponentHandler;
 
-#[repr(C)]
-#[derive(Debug, Default, Clone, Copy)]
-pub enum FactoryFlags {
-    #[default]
-    NoFlags = 0,
-
-    ClassesDiscardable = 1 << 0,
-    LicenseCheck = 1 << 1,
-    ComponentNonDiscardable = 1 << 3,
-    Unicode = 1 << 4
-}
-
-#[repr(C)]
-#[derive(Debug, Clone, Copy)]
-struct PFactoryInfo {
-    vendor: [c_char; 64],
-    url: [c_char; 256],
-    email: [c_char; 128],
-    flags: FactoryFlags
-}
-
-#[repr(C)]
-#[derive(Debug, Clone, Copy)]
-struct PClassInfo {
-    cid: [c_char; 16],
-    cardinality: i32,
-    category: [c_char; 32],
-    name: [c_char; 64]
-}
-
-impl Default for PClassInfo {
-    fn default() -> Self {
-        Self {
-            cid: [0; 16],
-            cardinality: 0,
-            category: [0; 32],
-            name: [0; 64],
-        }
-    }
-}
-
-impl Default for PFactoryInfo {
-    fn default() -> Self {
-        Self {
-            vendor: [0; 64],
-            url: [0; 256],
-            email: [0; 128],
-            flags: FactoryFlags::NoFlags,
-        }
-    }
-}
-
-impl std::fmt::Display for PFactoryInfo {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        unsafe {
-            write!(f, "PFactoryInfo {{ vendor: {:?}, url: {:?}, email: {:?}, flags: {:?} }}",
-                   CStr::from_ptr(self.vendor.as_ptr()),
-                   CStr::from_ptr(self.url.as_ptr()),
-                   CStr::from_ptr(self.email.as_ptr()),
-                   self.flags
-            )
-        }
-    }
-}
-
-impl std::fmt::Display for PClassInfo {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        unsafe {
-            write!(f, "PClassInfo {{ cid: {:?}, cardinality: {:?}, category: {:?}, name: {:?} }}",
-                   self.cid,
-                   self.cardinality,
-                   CStr::from_ptr(self.category.as_ptr()),
-                   CStr::from_ptr(self.name.as_ptr()),
-            )
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
-pub struct FUID(u32, u32, u32, u32);
-
-impl FUID {
-    pub fn to_hex(&self) -> String {
-        let mut hex_string = String::new();
-
-        // Convert each u32 field into hexadecimal and append to the string
-        let hex_string = format!("{:08X}{:08X}{:08X}{:08X}", self.0, self.1, self.2, self.3);
-
-        hex_string
-    }
-}
-
-#[allow(non_snake_case)]
-#[repr(C)]
-struct FUnknownVTable {
-    pub queryInterface: unsafe extern "thiscall" fn(this: *mut FUnknown, _iid: [c_char; 16], obj: *mut c_void) -> i32,
-    pub addRef: unsafe extern "thiscall" fn(this: *mut FUnknown) -> u32,
-    pub release: unsafe extern "thiscall" fn(this: *mut FUnknown) -> u32,
-}
-
-#[repr(C)]
-pub struct FUnknown {
-    vtable: *const FUnknownVTable
-}
-
-impl FUnknown {
-    pub fn iid() -> [c_char; 16] {
-        inline_uid(0x00000000, 0x00000000, 0xC0000000, 0x00000046)
-    }
-}
-
-impl Into<[c_char; 16]> for FUID {
-    fn into(self) -> [c_char; 16] {
-        unsafe { std::mem::transmute::<FUID, [c_char; 16]>(self) }
-    }
-}
-
-type FIDString = *const c_char;
-
-#[allow(non_snake_case)]
-#[repr(C)]
-struct IPluginFactoryVTable {
-    pub queryInterface: unsafe extern "thiscall" fn(this: *mut IPluginFactory, _iid: [c_char; 16], obj: *mut c_void) -> i32,
-    pub addRef: unsafe extern "thiscall" fn(this: *mut IPluginFactory) -> u32,
-    pub release: unsafe extern "thiscall" fn(this: *mut IPluginFactory) -> u32,
-
-    pub getFactoryInfo: unsafe extern "thiscall" fn(this: *mut IPluginFactory, factory_info: *mut PFactoryInfo) -> i32,
-    pub countClasses: unsafe extern "thiscall" fn(this: *mut IPluginFactory) -> i32,
-    pub getClassInfo: unsafe extern "thiscall" fn(this: *mut IPluginFactory, index: i32, info: *mut PClassInfo) -> i32,
-    pub createInstance: unsafe extern "thiscall" fn(this: *mut IPluginFactory, cid: [c_char; 16], iid: [c_char; 16], obj: *mut *mut c_void) -> i32,
-}
-
-#[repr(C)]
-struct IPluginFactory {
-    vtable: *const IPluginFactoryVTable
-}
-
-impl IPluginFactory {
-    unsafe fn add_ref(&mut self) -> u32 {
-        ((*(self.vtable)).addRef)(self)
-    }
-
-    unsafe fn release(&mut self) -> u32 {
-        ((*(self.vtable)).release)(self)
-    }
-
-    unsafe fn get_factory_info(&mut self, factory_info: *mut PFactoryInfo) -> i32 {
-        ((*(self.vtable)).getFactoryInfo)(self, factory_info)
-    }
-
-    unsafe fn get_class_info(&mut self, index: i32, class_info: *mut PClassInfo) -> i32 {
-        ((*(self.vtable)).getClassInfo)(self, index, class_info)
-    }
-
-    unsafe fn count_classes(&mut self) -> i32 {
-        ((*(self.vtable)).countClasses)(self)
-    }
-
-    unsafe fn create_instance(&mut self, cid: [c_char; 16], iid: [c_char; 16], obj: *mut *mut c_void) -> i32 {
-        ((*(self.vtable)).createInstance)(self, cid, iid, obj)
-    }
-}
-
-
-#[allow(non_snake_case)]
-#[repr(C)]
-struct IPluginBaseVTable {
-    pub queryInterface: unsafe extern "thiscall" fn(this: *mut IPluginBase, _iid: [c_char; 16], obj: *mut c_void) -> i32,
-    pub addRef: unsafe extern "thiscall" fn(this: *mut IPluginBase) -> u32,
-    pub release: unsafe extern "thiscall" fn(this: *mut IPluginBase) -> u32,
-
-    pub initialize: unsafe extern "thiscall" fn(this: *mut IPluginBase, context: *mut IHostApplication) -> i32,
-    pub terminate: unsafe extern "thiscall" fn(this: *mut IPluginBase) -> i32,
-}
-
-#[repr(C)]
-struct IPluginBase {
-    vtable: *const IPluginBaseVTable
-}
-
-impl IPluginBase {
-    unsafe fn add_ref(&mut self) -> u32 {
-        ((*(self.vtable)).addRef)(self)
-    }
-
-    unsafe fn release(&mut self) -> u32 {
-        ((*(self.vtable)).release)(self)
-    }
-
-    unsafe fn initialize(&mut self, context: *mut IHostApplication) -> i32 {
-        ((*(self.vtable)).initialize)(self, context)
-    }
-
-    unsafe fn terminate(&mut self) -> i32 {
-        ((*(self.vtable)).terminate)(self)
-    }
-}
-
-#[allow(non_snake_case)]
-#[repr(C)]
-struct IHostApplicationVTable {
-    pub queryInterface: fn(this: *mut IHostApplication, _iid: [c_char; 16], obj: *mut c_void) -> i32,
-    pub addRef: fn(this: *mut IHostApplication) -> u32,
-    pub release: fn(this: *mut IHostApplication) -> u32,
-
-    pub getName: fn(this: *mut IHostApplication, name: &mut [u16; 128]) -> i32,
-    pub createInstance: fn(this: *mut IHostApplication, cid: [c_char; 16], iid: [c_char; 16], obj: *mut *mut c_void) -> i32,
-}
-
-#[repr(C)]
-struct IHostApplication {
-    vtable: &'static IHostApplicationVTable
-}
-
-impl IHostApplication {
-    pub fn new() -> Self {
-        Self {
-            vtable: &IHostApplicationVTable {
-                queryInterface: |this, iid, obj| {
-                    -1
-                },
-
-                addRef: |this| {
-                    1000
-                },
-
-                release: |this| {
-                    1000
-                },
-
-                getName: |this, name| {
-                    name[0] = u16::try_from('N').unwrap();
-                    name[1] = 0;
-
-                    0
-                },
-
-                createInstance: |this, cid, iid, obj| {
-                    0
-                }
-            }
-        }
-    }
-}
+pub mod base;
+pub mod gui;
+pub mod vst;
 
 type InitDllProc = fn() -> bool;
 type ExitDllProc = fn() -> bool;
 type GetPluginFactoryProc = fn() -> *mut IPluginFactory;
 
-fn inline_uid(l1: u32, l2: u32, l3: u32, l4: u32) -> [c_char; 16] {
-    // [
-    //     ((l1 & 0x000000FF)) as c_char,
-    //     ((l1 & 0x0000FF00) >> 8) as c_char,
-    //     ((l1 & 0x00FF0000) >> 16) as c_char,
-    //     ((l1 & 0xFF000000) >> 24) as c_char,
-    //
-    //     ((l2 & 0x00FF0000) >> 16) as c_char,
-    //     ((l2 & 0xFF000000) >> 24) as c_char,
-    //     ((l2 & 0x000000FF)) as c_char,
-    //     ((l2 & 0x0000FF00) >> 8) as c_char,
-    //
-    //     ((l3 & 0xFF000000) >> 24) as c_char,
-    //     ((l3 & 0x00FF0000) >> 16) as c_char,
-    //     ((l3 & 0x0000FF00) >> 8) as c_char,
-    //     ((l3 & 0x000000FF)) as c_char,
-    //
-    //     ((l4 & 0xFF000000) >> 24) as c_char,
-    //     ((l4 & 0x00FF0000) >> 16) as c_char,
-    //     ((l4 & 0x0000FF00) >> 8) as c_char,
-    //     ((l4 & 0x000000FF)) as c_char,
-    // ]
-
-    [
-        ((l1 & 0xFF000000) >> 24) as c_char,
-        ((l1 & 0x00FF0000) >> 16) as c_char,
-        ((l1 & 0x0000FF00) >>  8) as c_char,
-        ((l1 & 0x000000FF)      ) as c_char,
-
-        ((l2 & 0xFF000000) >> 24) as c_char,
-        ((l2 & 0x00FF0000) >> 16) as c_char,
-        ((l2 & 0x0000FF00) >>  8) as c_char,
-        ((l2 & 0x000000FF)      ) as c_char,
-
-        ((l3 & 0xFF000000) >> 24) as c_char,
-        ((l3 & 0x00FF0000) >> 16) as c_char,
-        ((l3 & 0x0000FF00) >>  8) as c_char,
-        ((l3 & 0x000000FF)      ) as c_char,
-
-        ((l4 & 0xFF000000) >> 24) as c_char,
-        ((l4 & 0x00FF0000) >> 16) as c_char,
-        ((l4 & 0x0000FF00) >>  8) as c_char,
-        ((l4 & 0x000000FF)      ) as c_char,
-    ]
+#[derive(Debug, Clone, Copy)]
+pub struct VSTPtr<T: FUnknown_Impl> {
+    data: *mut T,
+    _marker: PhantomData<T>,
 }
 
-fn uid_to_ascii(uid: [c_char; 16]) -> [u8; 37] {
-    // Step 1: Convert [u8; 16] to a hex string (32 characters long)
-    let hex_string = uid.iter()
-        .map(|byte| format!("{:02X}", byte))  // Format each byte as 2 hex digits
+impl<T: FUnknown_Impl> VSTPtr<T> {
+    pub fn new(ptr: *mut T) -> Self {
+        Self {
+            data: ptr,
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<T: FUnknown_Impl> Deref for VSTPtr<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { &*(self.data) }
+    }
+}
+
+impl<T: FUnknown_Impl> DerefMut for VSTPtr<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { &mut *(self.data) }
+    }
+}
+
+// impl<T: FUnknown_Impl> Drop for VSTPtr<T> {
+// fn drop(&mut self) {
+// unsafe {
+// self.release();
+// }
+// }
+// }
+
+unsafe impl<T: FUnknown_Impl> Sync for VSTPtr<T> {}
+unsafe impl<T: FUnknown_Impl> Send for VSTPtr<T> {}
+
+pub struct Module {
+    lib: Option<Library>,
+}
+
+impl Module {
+    pub fn new(path: &str) -> Result<Self> {
+        unsafe {
+            let lib = Library::new(path).unwrap();
+            let init: Symbol<InitDllProc> = lib.get(b"InitDll").unwrap();
+            init.call(());
+
+            Ok(Self { lib: Some(lib) })
+        }
+    }
+
+    pub fn get_factory(&mut self) -> Result<VSTPtr<IPluginFactory>> {
+        unsafe {
+            let raw_factory: Symbol<GetPluginFactoryProc> = self
+                .lib
+                .as_ref()
+                .expect("Library is None!")
+                .get::<GetPluginFactoryProc>(b"GetPluginFactory")?;
+
+            Ok(VSTPtr::new(raw_factory.call(())))
+        }
+    }
+}
+
+impl Drop for Module {
+    fn drop(&mut self) {
+        unsafe {
+            let mut lib = self.lib.take().unwrap();
+            let exit: Symbol<ExitDllProc> = lib.get(b"ExitDll").unwrap();
+            exit.call(());
+
+            lib.close().unwrap();
+        }
+    }
+}
+
+pub fn uid_to_ascii(uid: [c_char; 16]) -> String {
+    // Convert [u8; 16] to a hex string (32 characters long)
+    let hex_string = uid
+        .iter()
+        .map(|byte| format!("{:02X}", byte)) // Format each byte as 2 hex digits
         .collect::<String>();
 
     let formatted_uid = format!(
@@ -320,69 +135,5 @@ fn uid_to_ascii(uid: [c_char; 16]) -> [u8; 37] {
         &hex_string[20..32]
     );
 
-    // Step 2: Convert the hex string into [u8; 32] of ASCII values
-    let mut ascii_array = [0u8; 37];
-    for (i, c) in formatted_uid.chars().enumerate() {
-        ascii_array[i] = c as u8;  // Convert each char to its ASCII value
-    }
-
-    ascii_array[36] = 0;
-
-    ascii_array
-}
-pub fn load_vst() {
-    unsafe {
-        let lib = Library::new("../../../vst3/Archetype Nolly.vst3").unwrap();
-        let init: Symbol<InitDllProc> = lib.get(b"InitDll").unwrap();
-        init.call(());
-
-        let raw_factory: Symbol<GetPluginFactoryProc> = lib.get::<GetPluginFactoryProc>(b"GetPluginFactory").unwrap();
-        let raw_factory: *mut IPluginFactory = raw_factory.call(());
-        let factory = &mut *raw_factory;
-
-        factory.add_ref();
-
-        println!("{}", factory.count_classes());
-
-        let mut factory_info = PFactoryInfo::default();
-        factory.get_factory_info(&mut factory_info);
-
-        let mut host = IHostApplication::new();
-
-        for i in 0..factory.count_classes() {
-            let mut class_info = PClassInfo::default();
-            factory.get_class_info(i, &mut class_info);
-
-            let mut object: *mut c_void = std::ptr::null_mut();
-
-            let fid1 = class_info.cid;
-            let fid2 = FUnknown::iid();
-            let fid3 = inline_uid(0xE831FF31, 0xF2D54301, 0x928EBBEE, 0x25697802);
-
-            println!("{:?}", fid1);
-            println!("{:?}", fid2);
-            println!("{:?}", fid3);
-
-            let res = factory.create_instance(fid1, fid2, &mut object);
-
-            let object = &mut *(object as *mut IPluginBase);
-
-            let initres = object.initialize(&mut host);
-
-            object.terminate();
-
-            println!("{:?} {:?} {} {:p} {} {}", class_info.cid, FUnknown::iid(), class_info, object, res, initres);
-        }
-
-
-
-        factory.release();
-
-        println!("{:?}, {}", raw_factory, factory_info);
-
-        let exit: Symbol<ExitDllProc> = lib.get(b"ExitDll").unwrap();
-        exit.call(());
-
-        lib.close().unwrap();
-    }
+    formatted_uid
 }

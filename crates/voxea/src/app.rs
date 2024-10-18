@@ -1,23 +1,28 @@
-use crate::window::{Render, Window};
+use crate::renderer::RenderContext;
+use crate::window::{Render, Window, WindowContext};
 use anyhow::Result;
 use log::{error, warn};
 use rustc_hash::FxHashMap;
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use voxea_alloc::perf;
 use voxea_alloc::perf::PerfTrace;
+use voxea_audio::vst::host::VSTHostContext;
+use voxea_audio::AudioEngine;
 use winit::application::ApplicationHandler;
 use winit::event::{StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::platform::windows::WindowExtWindows;
 use winit::window::{WindowAttributes, WindowId};
-use crate::renderer::RenderContext;
 
 #[derive(Default)]
 pub struct App {
     pub(crate) windows: FxHashMap<WindowId, Option<Window>>,
+    pub(crate) audio_engine: AudioEngine,
+    pub(crate) plugin_modules: Arc<RwLock<Vec<VSTHostContext>>>,
     pub(crate) on_start_callback: Option<Box<dyn FnOnce(&mut App, &ActiveEventLoop)>>,
     pub(crate) wait_cancelled: bool,
-    pub(crate) render_context: Option<RenderContext>
+    pub(crate) render_context: Option<RenderContext>,
 }
 
 const WAIT_TIME: Duration = Duration::from_micros(16666);
@@ -26,9 +31,11 @@ impl App {
     pub fn new() -> Self {
         Self {
             windows: FxHashMap::default(),
+            audio_engine: AudioEngine::default(),
+            plugin_modules: Arc::new(RwLock::new(Vec::new())),
             on_start_callback: None,
             wait_cancelled: false,
-            render_context: None
+            render_context: None,
         }
     }
 
@@ -37,15 +44,27 @@ impl App {
         event_loop: &ActiveEventLoop,
         window_attributes: Option<WindowAttributes>,
         view: Option<Box<dyn Render + 'static>>,
-    ) -> Result<WindowId> {
+        backend: bool,
+    ) -> Result<&Option<Window>> {
         perf::begin_perf!("app::open_window");
 
-        let window = Window::new(event_loop, window_attributes, view)?;
+        let mut window = Window::new(event_loop, window_attributes, view, backend)?;
+
+        if let Some(mut view) = window.view.take() {
+            let mut cx = WindowContext {
+                app: self,
+                window: &mut window,
+            };
+
+            view.on_open(&mut cx);
+
+            let _ = window.view.insert(view);
+        }
 
         let id = window.window.id();
         self.windows.insert(id, Some(window));
 
-        Ok(id)
+        Ok(self.windows.get(&id).unwrap())
     }
 
     pub fn get_window(&mut self, window_id: &WindowId) -> Option<&mut Window> {
@@ -114,17 +133,7 @@ impl ApplicationHandler for App {
             return;
         };
 
-        let response = window.on_window_event(self, event_loop, &event);
-
-        match event {
-            WindowEvent::Resized(size) => {}
-
-            WindowEvent::RedrawRequested => {}
-
-            WindowEvent::CloseRequested => {}
-
-            _ => {}
-        }
+        let _response = window.on_window_event(self, event_loop, &event);
 
         if window.running {
             // Moves ownership of the window back to the App
@@ -157,3 +166,15 @@ impl ApplicationHandler for App {
         }
     }
 }
+
+//pub struct AsyncApp {
+//    app: Weak<Mutex<App>>
+//}
+//
+//impl AsyncApp {
+//    pub fn new(app: &mut App) -> Self {
+//        Self {
+//            app: Weak::new()
+//        }
+//    }
+//}

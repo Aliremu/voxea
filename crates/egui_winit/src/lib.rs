@@ -1,3 +1,4 @@
+#![allow(warnings)]
 //! [`egui`] bindings for [`winit`](https://github.com/rust-windowing/winit).
 //!
 //! The library translates winit events to egui, handled copy/paste,

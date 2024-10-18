@@ -1,2 +1,3 @@
 pub mod menu;
-mod settings;
+pub mod plugview;
+pub mod settings;

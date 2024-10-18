@@ -1,11 +1,12 @@
-use crate::ui::settings;
+use crate::ui::{plugview, settings};
 use crate::window::{Render, WindowContext};
-use crate::{plugin, renderer, App};
-use egui::{pos2, Color32};
+use crate::{renderer, App};
 use egui::load::SizedTexture;
-use log::info;
+use egui::pos2;
 use winit::dpi::PhysicalSize;
+use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
+use winit::keyboard::KeyCode;
 use winit::platform::windows::WindowExtWindows;
 use winit::window::WindowAttributes;
 
@@ -14,27 +15,56 @@ pub fn init(cx: &mut App, event_loop: &ActiveEventLoop) {
         .with_title("Voxea 0.1")
         .with_inner_size(PhysicalSize::new(1600, 900));
 
-    cx.open_window(
-        event_loop,
-        Some(window_attributes),
-        Some(Box::new(Menu::default())),
-    )
-    .expect("Failed to open menu");
+    let window = cx
+        .open_window(
+            event_loop,
+            Some(window_attributes),
+            Some(Box::new(Menu::default())),
+            true,
+        )
+        .expect("Failed to open menu");
 }
 
 #[derive(Default)]
 pub struct Menu {}
 
 impl Render for Menu {
-    fn render(&mut self, cx: &mut WindowContext, event_loop: &ActiveEventLoop) {
-        // plugin::process_signal();
+    fn window_event(
+        &mut self,
+        cx: &mut WindowContext,
+        event_loop: &ActiveEventLoop,
+        event: &WindowEvent,
+    ) {
+        match event {
+            WindowEvent::KeyboardInput {
+                event,
+                is_synthetic,
+                ..
+            } => {
+                if !is_synthetic && !event.repeat && event.state == ElementState::Pressed {
+                    if event.physical_key == KeyCode::KeyJ {
+                        plugview::init(cx.app, event_loop, 1);
+                    }
 
+                    if event.physical_key == KeyCode::KeyK {
+                        plugview::init(cx.app, event_loop, 2);
+                    }
+
+                    if event.physical_key == KeyCode::KeyL {
+                        plugview::init(cx.app, event_loop, 3);
+                    }
+                }
+            }
+
+            _ => {}
+        }
+    }
+    fn render(&mut self, cx: &mut WindowContext, event_loop: &ActiveEventLoop) {
         let window = &mut cx.window;
 
         let app = &mut cx.app;
 
-        window.draw_triangle();
-        let texture_id = window.fbo_id;
+        let texture_id = window.backend.as_ref().unwrap().fbo_id;
 
         let parent = window.window.clone();
 
@@ -72,13 +102,13 @@ impl Render for Menu {
                 let rend = renderer::get();
 
                 if rend.textures.len() > 0 {
-                    let img = SizedTexture::new(rend.textures.get(0).unwrap().2, ui.available_size());
+                    let img =
+                        SizedTexture::new(rend.textures.get(0).unwrap().2, ui.available_size());
 
                     // info!("{:?}", rend.textures.get(0).unwrap());
 
                     ui.add(egui::Image::new(img));
                     // ui.painter().image(rend.textures.get(0).unwrap().2, rect, uv, Color32::from_rgba_premultiplied(255, 255, 255, 1));
-
                 }
             });
         });
