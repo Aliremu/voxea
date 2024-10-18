@@ -1,19 +1,10 @@
 use crate::window::{Render, WindowContext};
 use crate::App;
-use cpal::traits::{HostTrait, StreamTrait};
 use log::warn;
-use ringbuf::traits::{Consumer, Producer, Split};
-use ringbuf::HeapRb;
-use rodio::DeviceTrait;
 use std::ffi::c_void;
-use std::sync::{mpsc, Arc};
-use std::time::{Duration, Instant};
-use voxea_audio::vst::host::{HostParameterChanges, VSTHostContext};
-use voxea_vst::base::funknown::{IAudioProcessor_Impl, IPlugView_Impl};
+use std::sync::mpsc;
+use voxea_vst::base::funknown::IPlugView_Impl;
 use voxea_vst::gui::plug_view::{PlatformType, ViewRect};
-use voxea_vst::vst::audio_processor::{
-    AudioBusBuffers, ProcessData, ProcessMode, SymbolicSampleSize,
-};
 use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;

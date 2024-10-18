@@ -53,7 +53,7 @@ impl VSTHostContext {
     pub fn new(path: &str) -> Result<Self> {
         unsafe {
             let mut module = Module::new(path)?;
-            let mut factory = module.get_factory()?;
+            let factory = module.get_factory()?;
 
             let mut ctx = Self::default();
 

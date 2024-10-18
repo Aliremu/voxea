@@ -12,7 +12,6 @@ use std::cell::UnsafeCell;
 use std::fs::File;
 use std::io::BufWriter;
 use std::sync::{Arc, Mutex, RwLock};
-use voxea_alloc::perf::{self, PerfTrace};
 use voxea_vst::base::funknown::IAudioProcessor_Impl;
 use voxea_vst::vst::audio_processor::{
     AudioBusBuffers, ProcessContext, ProcessData, ProcessMode, SymbolicSampleSize,
